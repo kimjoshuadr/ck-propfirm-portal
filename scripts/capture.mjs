@@ -67,8 +67,15 @@ const check = (name, pass, detail = '') => checks.push({ name, pass: Boolean(pas
 const { chromium } = loadPlaywright()
 const browser = await chromium.launch({ executablePath: findSystemChromiumExecutable() })
 
+/* Nothing the app asks for may 404. The built site once shipped with every
+   brand image pointing at its source path — the dev server served those, so it
+   looked fine until production. Watching the network is the only way to see it. */
+const netFailures = []
 async function open(hash) {
   const page = await browser.newPage({ viewport: SIZE })
+  page.on('response', (r) => {
+    try { if (r.status() >= 400) netFailures.push(`${r.status()} ${r.url()}`) } catch { /* ignore */ }
+  })
   await page.goto(appUrl(hash), { waitUntil: 'load' })
   await page.waitForTimeout(900)
   return page
@@ -495,7 +502,9 @@ try {
       cards: cards.map((c) => ({
         name: c.querySelector('.plat-card__name').textContent.trim(),
         pressed: c.getAttribute('aria-pressed'),
-        logo: (c.querySelector('.plat-card__logo') || {}).getAttribute ? c.querySelector('.plat-card__logo').getAttribute('src') : '',
+        /* Vite inlines small images as data URIs; either that or an emitted
+           (hashed) file is right, the source path is the bug. */
+        logo: ((c.querySelector('.plat-card__logo') || {}).getAttribute ? c.querySelector('.plat-card__logo').getAttribute('src') : '') || '',
         count: c.querySelector('.plat-card__count').textContent.replace(/\s+/g, ' ').trim(),
       })),
       selected: read(),
@@ -503,7 +512,8 @@ try {
   })
   check('platforms: the page is downloads and nothing else', plat.headActions === 0 && plat.credentials === 0 && plat.symbols === 0 && plat.statCards === 0 && plat.panels === 2 && plat.legacy === 0, `${plat.panels} panels · ${plat.headActions} head actions · ${plat.credentials} credential rows · ${plat.symbols} symbol tables · ${plat.statCards} stat cards · ${plat.legacy} legacy nodes`)
   check('platforms: nothing offers a connection guide or a desktop-only download', !/connection guide|download desktop/i.test(plat.text) && !/password|copy login/i.test(plat.text), plat.text.slice(0, 120))
-  check('platforms: two platforms, each with its own mark', plat.cards.length === 2 && plat.cards[0].logo.includes('platform-tradelocker') && plat.cards[1].logo.includes('platform-metatrader5'), plat.cards.map((c) => `${c.name} → ${c.logo.split('/').pop()}`).join(' | '))
+  const markOk = (src) => !src.includes('/assets/brand/') && (/^data:image\//.test(src) || /platform-(tradelocker|metatrader5)-[A-Za-z0-9_-]+\.(png|jpg)/.test(src))
+  check('platforms: two platforms, each with an emitted mark', plat.cards.length === 2 && plat.cards.every((c) => markOk(c.logo)), plat.cards.map((c) => `${c.name} → ${c.logo.startsWith('data:') ? 'inlined' : c.logo.split('/').pop()}`).join(' | '))
   check('platforms: the first is selected and says how many builds it has', plat.cards[0].pressed === 'true' && plat.cards[1].pressed === 'false' && plat.cards[0].count === '5 downloads available', plat.cards.map((c) => `${c.name} (${c.count})`).join(' | '))
   check('platforms: the rows follow the picked platform', plat.selected.title === 'TradeLocker downloads' && plat.selected.rows === 5 && plat.selected.buttons === 5 && plat.selected.badge === '5 builds', `${plat.selected.title} · ${plat.selected.rows} rows · ${plat.selected.badge}`)
   check('platforms: every row names a device and where the build comes from', new Set(plat.selected.systems).size === plat.selected.rows && plat.selected.sources.every((s) => s.length > 1), plat.selected.systems.map((s, i) => `${s}: ${plat.selected.sources[i]}`).join(' · '))
@@ -894,6 +904,31 @@ try {
   })
   check('user menu: picking a row closes the panel and moves the hash', afterClick.menus === 0 && afterClick.hash === '#help/support', `${afterClick.menus} menus open · hash ${afterClick.hash}`)
   await top.close()
+
+  /* --- nothing 404s, and every image paints ----------------------------- */
+  const gallery = await open('#overview')
+  const imgs = await gallery.evaluate(() => [...document.querySelectorAll('img')].map((i) => ({
+    src: i.getAttribute('src') || '', ok: i.naturalWidth > 0,
+  })))
+  check('images: the overview\'s images all load', imgs.length > 0 && imgs.every((i) => i.ok) && imgs.every((i) => !i.src.includes('/assets/brand/')), `${imgs.length} images, ${imgs.filter((i) => !i.ok).length} broken${imgs.filter((i) => !i.ok).map((i) => ` (${i.src})`).join('')}`)
+  await gallery.close()
+
+  const market = await open('#market/news')
+  /* The thumbnails are `loading="lazy"`, so nothing below the fold has fetched
+     anything yet: walk the page before asking whether they loaded. */
+  await market.evaluate(async () => {
+    for (let y = 0; y < document.body.scrollHeight; y += 600) {
+      window.scrollTo(0, y)
+      await new Promise((r) => setTimeout(r, 120))
+    }
+    window.scrollTo(0, 0)
+  })
+  await market.waitForTimeout(2500)
+  const news = await market.evaluate(() => [...document.querySelectorAll('img')].map((i) => ({ src: i.getAttribute('src') || '', ok: i.naturalWidth > 0 })))
+  check('images: the newsroom\'s thumbnails load once scrolled', news.length > 3 && news.every((i) => i.ok), `${news.length} images, ${news.filter((i) => !i.ok).length} broken`)
+  await market.close()
+
+  check('network: nothing the app requested came back 4xx or 5xx', netFailures.length === 0, netFailures.length ? `${netFailures.length} failures: ${[...new Set(netFailures)].slice(0, 5).join(' · ')}` : `no failures across ${checks.length} page loads`)
 
   /* --- the same invariant on the pages this turn did not touch ----------- */
   for (const hash of ['#overview', '#accounts', '#market/news', '#tools/sizer', '#tools/platforms', '#learn', '#community/leaderboard', '#manage/withdrawals', '#manage/methods', '#manage/billing', '#manage/agreements', '#settings', '#help/faq', '#community/affiliates']) {

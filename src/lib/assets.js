@@ -1,23 +1,39 @@
 /*
- * Brand assets. `new URL(..., import.meta.url)` lets Vite resolve, hash and
- * emit each file for the production build instead of relying on a public dir.
+ * Brand assets.
+ *
+ * Imported with `?url`: Vite emits each file, hashes it and hands back the path
+ * in the bundle. This file used to build the same URLs through a helper —
+ * `const url = (path) => new URL(path, import.meta.url).href` — which Vite
+ * cannot analyse, because it only rewrites that call when the path is written
+ * literally at the call site. The dev server happily served the source paths, so
+ * nothing looked wrong until the built site went up: every image on it 404ed,
+ * and no brand file was emitted at all.
+ *
+ * Keep these as direct imports. A helper that builds paths at runtime is the
+ * thing that broke it.
  */
-const url = (path) => new URL(path, import.meta.url).href
+import logo from '../../assets/brand/logo.svg?url'
+import favicon from '../../assets/brand/favicon.png?url'
+import promo from '../../assets/brand/promo-70off.jpg?url'
+import video from '../../assets/brand/trader-65k.jpg?url'
+import discord from '../../assets/brand/discord-community.jpg?url'
+import certificate from '../../assets/brand/payout-certificate.jpg?url'
+import payoutProof from '../../assets/brand/payout-proof.png?url'
+import mascot from '../../assets/brand/mascot-hero.png?url'
+/* The vendors' own artwork for the downloads page. */
+import tradeLocker from '../../assets/brand/platform-tradelocker.png?url'
+import metaTrader5 from '../../assets/brand/platform-metatrader5.jpg?url'
 
 export const brand = {
-  logo: url('../../assets/brand/logo.svg'),
-  favicon: url('../../assets/brand/favicon.png'),
-  promo: url('../../assets/brand/promo-70off.jpg'),
+  logo,
+  favicon,
+  promo,
   /* Connect row + certificates band */
-  video: url('../../assets/brand/trader-65k.jpg'),
-  discord: url('../../assets/brand/discord-community.jpg'),
-  certificate: url('../../assets/brand/payout-certificate.jpg'),
-  payoutProof: url('../../assets/brand/payout-proof.png'),
-  mascot: url('../../assets/brand/mascot-hero.png'),
-  /* The vendors' own artwork for the downloads page: TradeLocker's brackets and
-     MetaTrader 5's blue tile. Both are square icons that carry their own
-     background, so the page frames them the same way rather than recolouring
-     either. */
-  tradeLocker: url('../../assets/brand/platform-tradelocker.png'),
-  metaTrader5: url('../../assets/brand/platform-metatrader5.jpg'),
+  video,
+  discord,
+  certificate,
+  payoutProof,
+  mascot,
+  tradeLocker,
+  metaTrader5,
 }
