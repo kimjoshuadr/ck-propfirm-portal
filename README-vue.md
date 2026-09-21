@@ -129,3 +129,18 @@ vanilla shell: the sidebar/topbar/palette builder, the chart and table widgets,
 and the original demo dataset. Nothing loads them now — `assets/css/app.css`
 stays because `src/main.js` imports it as the design system. They are kept as
 the reference implementation for the screens that were translated.
+
+## Deployment (staging)
+
+Staging runs on Coolify at **https://staging-app.ckpropfirm.com**, project
+`CK Propfirm`, application `ck-propfirm-portal`, built from this repository's
+`main` branch.
+
+The app needs a build step, so the application uses the **Dockerfile** build
+pack: `Dockerfile` builds the SPA with `npm ci && npm run build` and hands
+`dist-vue/` to nginx, which serves it with `nginx.conf`. Coolify's *static*
+build pack must not be used — it copies the repository into the web root, which
+serves the Vite entry file rather than a bundle.
+
+Pushing to `main` deploys: the repository has a Coolify webhook on push events
+(`/webhooks/source/github/events/manual`).
