@@ -1,0 +1,9 @@
+node_modules
+dist-vue
+RECON
+Screenshot-*.png
+.git
+.gitignore
+.file-versions
+.od-skills
+vite-dev.log
