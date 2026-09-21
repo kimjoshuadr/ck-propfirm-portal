@@ -1,0 +1,2198 @@
+/* ==========================================================================
+   Ported screens — Overview and All accounts
+   --------------------------------------------------------------------------
+   Vue-only product styles (the notification drawer's filter row shares the
+   .seg control below). Every colour, radius and font comes from the shared
+   design system in assets/css/app.css — nothing new is invented here.
+
+   Tier 0 · canvas   hero, section headings, the live-desk block, the
+                     affiliate strip — type on the page, no edge, no fill.
+   Tier 1 · panel    one glass surface per data zone; rows divide on hairlines
+                     instead of nesting more boxes.
+   Tier 2 · card     the few real objects: account cards, the payout card and
+                     the two media cards.
+   ========================================================================== */
+
+.ov { display: grid; gap: 34px; }
+/* Grid items default to `min-width: auto`, so a table with a `min-width`
+   inside a `.table-wrap` sized the column instead of scrolling inside its own
+   wrap — the account page came out wider than the viewport and every deep link
+   landed scrolled sideways, with the sidebar off the left edge. Every page and
+   tab root is a `.ov`, so this one rule lets the wraps do their job. */
+.ov > * { min-width: 0; }
+.ov__zone { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); min-width: 0; }
+
+/* --- tier 0: canvas ------------------------------------------------------ */
+
+.hero { position: relative; display: flex; align-items: flex-start; gap: 28px; padding: 10px 0 6px; }
+.hero__glow {
+  position: absolute;
+  /* The right inset used to be -10%, which pushed this decoration 112px past
+     the column and made the whole page 1526px wide in a 1440px viewport — the
+     landing page could be dragged sideways. It stops at the column edge now. */
+  inset: -40% 0 auto -22%;
+  height: 320px;
+  background: var(--glow-violet);
+  pointer-events: none;
+}
+.hero__body { position: relative; min-width: 0; max-width: 62ch; }
+.hero__title {
+  font-family: var(--display);
+  font-size: clamp(26px, 2.6vw, 34px);
+  font-weight: 800;
+  letter-spacing: -0.028em;
+  line-height: 1.08;
+}
+.hero__sub { margin-top: 10px; font-size: 14.5px; line-height: 1.6; color: var(--muted); }
+.hero__actions { position: relative; margin-left: auto; display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; padding-top: 6px; }
+
+/* Section heading lives on the canvas, the panel sits under it. */
+.sec { display: flex; align-items: flex-end; gap: 18px; }
+.sec__body { min-width: 0; }
+.sec__title {
+  font-family: var(--display);
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.sec__sub { margin-top: 5px; font-size: 13px; color: var(--muted); }
+.sec__actions { margin-left: auto; display: flex; align-items: center; gap: 9px; flex: none; }
+
+/* The live-desk block: promo copy on the canvas, one glow, chart bleeding in. */
+.floor { position: relative; overflow: hidden; padding: 18px 0 4px; display: grid; gap: 11px; align-content: start; }
+.floor__glow {
+  position: absolute;
+  inset: -30% -30% auto 30%;
+  height: 260px;
+  background: var(--glow-violet);
+  pointer-events: none;
+}
+.floor__chart { position: absolute; right: -4%; bottom: -10px; width: 58%; opacity: 0.4; pointer-events: none; }
+.floor__chip {
+  position: relative;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--green) 34%, transparent);
+  background: color-mix(in oklab, var(--green) 10%, transparent);
+  font-size: 11.5px;
+  color: color-mix(in oklab, var(--green) 70%, #ffffff);
+}
+.floor__title { position: relative; font-family: var(--display); font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+.floor__sub { position: relative; font-size: 13.5px; line-height: 1.6; color: var(--muted); max-width: 46ch; }
+.floor__actions { position: relative; margin-top: 2px; }
+
+/* Affiliate: a strip, not a band. Hairlines top and bottom, nothing else. */
+.aff {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px 2px;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+}
+.aff__icon {
+  display: grid;
+  place-items: center;
+  width: 38px; height: 38px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--raise);
+  color: var(--gold-2);
+}
+.aff__title { font-family: var(--display); font-size: 14.5px; font-weight: 700; }
+.aff__sub { margin-top: 3px; font-size: 12.5px; color: var(--muted); }
+.aff__actions { margin-left: auto; display: flex; align-items: center; gap: 9px; flex: none; }
+
+/* --- tier 1: panels ------------------------------------------------------ */
+
+.panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--glass);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-1);
+}
+/* A panel in a row stretches to its neighbour, so its trailing action pins to
+   the bottom instead of leaving a hole under it. */
+.panel > .panel__foot { margin-top: auto; }
+/* Two zones in one surface, divided by a hairline instead of another border. */
+.panel--split { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); }
+.panel--split > * + * { border-left: 1px solid var(--line-soft); }
+
+.panel__head { display: flex; align-items: center; gap: 11px; padding: 16px 20px; border-bottom: 1px solid var(--line-soft); }
+/* The body of a panel: stacked blocks with the same rhythm everywhere, so a
+   page does not have to invent its own padding. */
+.panel__body { display: grid; gap: 18px; padding: 6px 18px 18px; }
+.panel__title { font-family: var(--display); font-size: 15px; font-weight: 700; }
+.panel__actions { margin-left: auto; display: flex; align-items: center; gap: 9px; }
+.panel__foot { padding: 12px 16px; border-top: 1px solid var(--line-soft); }
+
+/* balance zone halves */
+.kpi { display: grid; gap: 14px; padding: 22px 22px 18px; }
+.kpi__head { display: flex; align-items: center; gap: 9px; }
+.kpi__dot { width: 11px; height: 11px; border-radius: 50%; background: var(--fg); box-shadow: 0 0 0 3px color-mix(in oklab, #fff 12%, transparent); }
+.kpi__label { font-size: 15px; font-weight: 600; }
+.kpi__info { display: grid; place-items: center; color: var(--muted); }
+.kpi__balance { font-size: 12.5px; color: var(--muted); margin-top: -6px; }
+.kpi__value-row { display: flex; align-items: stretch; gap: 12px; }
+.kpi__rail { width: 4px; border-radius: 999px; background: var(--violet-2); flex: none; }
+.kpi__value {
+  font-family: var(--display);
+  font-size: clamp(32px, 3.4vw, 46px);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+.kpi__chart { height: 200px; }
+
+/* leaderboard rows */
+.lb { display: grid; padding: 6px 10px 12px; }
+.lb__row { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: var(--r); }
+.lb__row + .lb__row { border-top: 1px solid var(--line-soft); border-radius: 0; }
+.lb__row.is-lead {
+  background: linear-gradient(100deg, color-mix(in oklab, var(--gold) 10%, transparent) 0%, transparent 72%);
+  border-radius: var(--r);
+}
+.lb__rank { width: 18px; flex: none; font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: center; }
+.lb__avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 34px; height: 34px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--sunken);
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.lb__row.is-lead .lb__avatar { color: var(--gold-2); border-color: color-mix(in oklab, var(--gold) 40%, transparent); }
+.lb__crown { position: absolute; top: -9px; right: -7px; color: var(--gold-2); }
+.lb__name { font-family: var(--display); font-size: 14px; font-weight: 700; }
+.lb__meta { display: block; margin-top: 2px; font-size: 11.5px; color: var(--muted); }
+.lb__roi { margin-left: auto; display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--green); }
+
+/* certificates */
+.cert { padding: 18px; }
+.cert__media {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--r);
+  border: 1px solid var(--line-soft);
+  background: var(--sunken);
+}
+.cert__meta { display: flex; align-items: center; gap: 9px; margin-top: 14px; font-size: 12.5px; color: var(--muted); }
+.cert__meta b { color: var(--fg); font-weight: 600; }
+
+/* alerts — top-aligned so the severity icon sits on the title's line, not
+   floating beside the end of the message. */
+.alert { display: flex; align-items: flex-start; gap: 12px; padding: 15px 18px; }
+.alert + .alert { border-top: 1px solid var(--line-soft); }
+.alert__icon { flex: none; display: grid; place-items: center; margin-top: 1px; }
+.alert[data-tone="warn"] .alert__icon { color: var(--red); }
+.alert[data-tone="good"] .alert__icon { color: var(--green); }
+.alert[data-tone="info"] .alert__icon { color: var(--gold-2); }
+.alert__body { min-width: 0; }
+.alert__title { font-family: var(--display); font-size: 14px; font-weight: 700; }
+.alert__msg { margin-top: 5px; font-size: 12.5px; line-height: 1.55; color: var(--muted); }
+.alert__time { display: block; margin-top: 7px; font-size: 11.5px; color: var(--muted); }
+.alert__dismiss {
+  margin-left: auto;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px; height: 30px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.16s, border-color 0.16s, color 0.16s;
+}
+.alert__dismiss:hover { color: var(--fg); background: var(--raise-2); border-color: var(--line); }
+
+/* help */
+.help { display: grid; gap: 14px; padding: 22px; justify-items: center; text-align: center; }
+.help__icon {
+  display: grid;
+  place-items: center;
+  width: 50px; height: 50px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--raise);
+  color: var(--violet-2);
+}
+.help__title { font-family: var(--display); font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+.help__sub { font-size: 13px; line-height: 1.6; color: var(--muted); max-width: 46ch; }
+.help__search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 420px;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: var(--r);
+  border: 1px solid var(--line);
+  background: var(--sunken);
+  color: var(--muted);
+  transition: border-color 0.16s, background 0.16s;
+}
+.help__search:focus-within { border-color: var(--violet); background: var(--raise); }
+.help__search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 13.5px;
+  outline: none;
+}
+.help__search input::placeholder { color: var(--muted); }
+.help__results { width: 100%; max-width: 460px; display: grid; gap: 6px; text-align: left; }
+.help__result {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: var(--r);
+  border: 1px solid var(--line);
+  background: var(--raise);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.16s, background 0.16s;
+}
+.help__result:hover { border-color: var(--violet); background: var(--raise-2); }
+.help__result b { font-size: 13px; font-weight: 600; }
+.help__result span { font-size: 12px; color: var(--muted); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.help__pills { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+
+/* --- tier 2: cards ------------------------------------------------------- */
+
+/* The payout object: a card because it is one, not because it needs a box. */
+.payout { display: grid; place-items: center; padding: 22px; }
+.payout__stack { position: relative; width: 100%; max-width: 340px; }
+.payout__back { position: absolute; inset: -13px 14px auto 14px; height: 26px; border-radius: 15px 15px 6px 6px; background: var(--violet-grad); opacity: 0.8; }
+.payout__face {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  padding: 20px;
+  border-radius: var(--r-xl);
+  border: 1px solid color-mix(in oklab, #fff 14%, var(--line));
+  background:
+    radial-gradient(120% 130% at 100% 0%, color-mix(in oklab, var(--violet) 30%, transparent) 0%, transparent 62%),
+    linear-gradient(160deg, var(--card) 0%, var(--sunken) 100%);
+  box-shadow: var(--shadow-2), inset 0 1px 0 color-mix(in oklab, #fff 10%, transparent);
+}
+.payout__brand { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.payout__wordmark { font-family: var(--display); font-size: 12.5px; font-weight: 800; letter-spacing: 0.14em; color: var(--muted); }
+.payout__label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+.payout__amount { font-family: var(--mono); font-size: clamp(26px, 2.6vw, 34px); font-weight: 600; letter-spacing: -0.02em; }
+.payout__amount--hidden { letter-spacing: 0.1em; }
+.payout__foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 4px; }
+.payout__note { font-size: 11.5px; color: var(--muted); }
+.payout__sliver { position: absolute; left: 50%; bottom: -5px; transform: translateX(-50%); width: 74px; height: 8px; border-radius: 999px; background: var(--gold-grad); }
+
+/* Account cards sit on the canvas.
+   Three fit at desktop and the fourth deliberately peeks — a rail that cannot
+   scroll on a wide screen reads as a grid with useless arrows. */
+.rail { position: relative; min-width: 0; }
+.rail__track {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(252px, calc((100% - 28px) / 3.35));
+  gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+  cursor: grab;
+}
+.rail__track:focus-visible { outline: 2px solid var(--violet); outline-offset: 4px; border-radius: var(--r-lg); }
+.rail__track > * { scroll-snap-align: start; }
+.rail__track::-webkit-scrollbar { height: 8px; }
+.rail__track::-webkit-scrollbar-track { background: transparent; }
+.rail__track::-webkit-scrollbar-thumb { background: var(--line); border-radius: 999px; }
+.rail__track::-webkit-scrollbar-thumb:hover { background: var(--muted-dim); }
+.rail.is-dragging .rail__track, .rail__track:active { cursor: grabbing; }
+
+/* Edge fades say "there is more over there" without a scrollbar to read. */
+.rail__fade {
+  position: absolute;
+  top: 0;
+  bottom: 8px;
+  width: 56px;
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s;
+}
+.rail__fade--start { left: 0; background: linear-gradient(90deg, var(--bg), transparent); }
+.rail__fade--end { right: 0; background: linear-gradient(270deg, var(--bg), transparent); }
+.rail__fade--start { opacity: 0; }
+.rail:not(.is-start) .rail__fade--start { opacity: 1; }
+.rail:not(.is-end) .rail__fade--end { opacity: 1; }
+
+.acct {
+  position: relative;
+  /* A column, not a row grid: rows keep their own height (a funded account has
+     fewer objective rows than an evaluation, and stretching them pushed its
+     header, balance and chart out of line with the cards beside it) while the
+     footer still pins to the bottom, so the risk line matches across cards. */
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  background: var(--raise);
+  transition: border-color 0.16s, background 0.16s, transform 0.16s;
+}
+.acct:hover { border-color: color-mix(in oklab, var(--violet) 52%, var(--line)); background: var(--raise-2); transform: translateY(-1px); }
+.acct:focus-within { border-color: var(--violet); }
+.acct.is-active { box-shadow: inset 3px 0 0 var(--violet); }
+.acct.is-breached { background: color-mix(in oklab, var(--red) 5%, var(--raise)); }
+
+/* One stretched anchor makes the whole card the link; the controls above it
+   keep their own clicks. */
+.acct__link { position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
+/* Content stays *below* the link (no z-index of its own) so a click anywhere on
+   the card reaches it — only the real controls are lifted above. */
+.acct__top, .acct__pnl, .acct__value-row, .acct__chart, .acct__obj, .acct__foot { position: relative; }
+.acct .fav-btn, .acct__quick, .acct__quick * { position: relative; z-index: 2; }
+.acct__top { display: flex; align-items: center; gap: 8px; }
+.acct__names { display: grid; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.acct__number { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.acct__tag {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.acct__pnl { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.acct__pnl b { color: var(--fg); font-weight: 600; font-family: var(--mono); }
+.delta { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-family: var(--mono); font-size: 11px; }
+.delta--up { color: color-mix(in oklab, var(--green) 72%, #ffffff); background: color-mix(in oklab, var(--green) 16%, transparent); }
+.delta--down { color: color-mix(in oklab, var(--red) 68%, #ffffff); background: color-mix(in oklab, var(--red) 16%, transparent); }
+
+.acct__value-row { display: flex; gap: 11px; align-items: stretch; }
+.acct__rail { width: 4px; border-radius: 999px; flex: none; background: var(--violet-2); }
+.acct__rail--good { background: var(--green); }
+.acct__rail--bad { background: var(--red); }
+.acct__value { font-family: var(--display); font-size: 26px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; }
+.acct__chart { position: relative; height: 108px; border-radius: var(--r); overflow: hidden; background: var(--sunken); }
+.acct__flag {
+  position: absolute;
+  left: 50%; top: 8px;
+  transform: translateX(-50%);
+  padding: 3px 11px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  backdrop-filter: blur(6px);
+}
+.acct__flag--good { color: color-mix(in oklab, var(--green) 74%, #ffffff); background: color-mix(in oklab, var(--green) 20%, #030a1c); }
+.acct__flag--bad { color: color-mix(in oklab, var(--red) 70%, #ffffff); background: color-mix(in oklab, var(--red) 20%, #030a1c); }
+.acct__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 2px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.acct__foot b { font-family: var(--mono); font-weight: 500; color: var(--fg); }
+
+/* media cards — media, copy, then the action bar pinned to the card's bottom
+   so both cards in the row end on the same line. */
+.connect {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  overflow: hidden;
+  background: var(--glass);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1);
+}
+.connect__media { position: relative; background: var(--sunken); }
+.connect__media img { display: block; width: 100%; height: auto; }
+.connect__body { padding: 18px 18px 20px; }
+.connect__bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 13px;
+  color: var(--muted);
+}
+.connect__bar .btn { margin-left: auto; flex: none; }
+.connect__title { font-family: var(--display); font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+.connect__copy { margin-top: 7px; font-size: 13px; line-height: 1.6; color: var(--muted); }
+
+/* --- shared: segmented control, pills, charts ---------------------------- */
+
+.seg { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; border: 1px solid var(--line); background: var(--sunken); }
+.seg__btn {
+  min-height: 30px;
+  padding: 0 13px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--display);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.16s, border-color 0.16s, color 0.16s;
+}
+.seg__btn:hover:not([disabled]) { color: var(--fg); background: var(--raise); }
+.seg__btn.is-on {
+  background: color-mix(in oklab, var(--violet) 22%, transparent);
+  border-color: color-mix(in oklab, var(--violet) 50%, transparent);
+  color: #fff;
+}
+.seg__btn[disabled] { opacity: 0.4; cursor: not-allowed; }
+
+.notif__chip {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--violet) 34%, transparent);
+  color: var(--violet-2);
+  font-size: 10.5px;
+  font-weight: 600;
+  vertical-align: 1px;
+}
+
+.chart { color: var(--violet-2); width: 100%; height: 100%; }
+.chart--green { color: var(--green); }
+.chart--red { color: var(--red); }
+.chart svg { display: block; width: 100%; height: 100%; }
+
+/* --- responsive ---------------------------------------------------------- */
+
+@media (max-width: 1240px) {
+  .ov { gap: 28px; }
+  .panel--split { grid-template-columns: minmax(0, 1fr); }
+  .panel--split > * + * { border-left: 0; border-top: 1px solid var(--line-soft); }
+  .ov__row-2 { grid-template-columns: minmax(0, 1fr); }
+}
+
+.ov__row-2 { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 18px; align-items: stretch; }
+.ov__row-2--even { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ov__col { display: grid; gap: 18px; align-content: start; }
+
+@media (max-width: 900px) {
+  .hero { flex-direction: column; gap: 18px; }
+  .hero__actions { margin-left: 0; justify-content: flex-start; padding-top: 0; }
+  .sec { flex-wrap: wrap; align-items: flex-start; }
+  .sec__actions { margin-left: 0; }
+  .rail__track { grid-auto-columns: minmax(260px, 86%); }
+  .aff { flex-wrap: wrap; }
+  .aff__actions { margin-left: 0; }
+  .panel__head, .kpi, .payout, .help, .cert { padding-inline: 15px; }
+  .alert { padding: 14px 15px; }
+}
+
+@media (max-width: 720px) {
+  .ov__row-2, .ov__row-2--even { grid-template-columns: minmax(0, 1fr); }
+  .help__pills { flex-direction: column; width: 100%; }
+  .help__pills .btn { width: 100%; }
+}
+
+/* --- all accounts: filter bar, roomy table, pager ------------------------ */
+
+.acct-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.acct-filters .select { width: auto; min-width: 172px; min-height: 40px; padding-block: 0; font-size: 13.5px; }
+.acct-filters__note { margin-left: auto; font-size: 12.5px; color: var(--muted); }
+
+.data--roomy tbody td { padding: 16px 14px; }
+.data--roomy thead th { padding: 12px 14px; }
+/* Long trade lists: the rows are the same height as every other table on the
+   page now, a faint stripe holds the eye across eleven columns, and the net
+   column carries the weight the columns beside it do not. */
+.data--striped tbody tr:nth-child(even) { background: color-mix(in oklab, var(--raise) 60%, transparent); }
+.data--striped tbody tr:hover { background: var(--raise); }
+.data tbody td.net span { font-weight: 600; }
+/* Status reads as a label in a table cell, not as the lowercase state token. */
+.acct-status { text-transform: capitalize; }
+
+.data tbody tr.is-row { cursor: pointer; }
+.data tbody tr.is-row:focus-visible { outline: 2px solid var(--violet-2); outline-offset: -2px; }
+
+.acct-pager {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.acct-pager .select {
+  width: auto;
+  min-height: 34px;
+  padding-block: 0;
+  padding-right: 32px;
+  font-size: 13px;
+  background-position: calc(100% - 16px) 14px, calc(100% - 11px) 14px;
+}
+.acct-pager__spacer { margin-left: auto; font-family: var(--mono); }
+
+.row-btn {
+  display: grid;
+  place-items: center;
+  width: 30px; height: 30px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.16s, border-color 0.16s, color 0.16s;
+}
+.row-btn:hover { color: var(--fg); background: var(--raise-2); border-color: var(--line); }
+.row-btn.is-on { color: var(--gold); }
+
+.acct-search { width: auto; min-width: 240px; min-height: 40px; font-size: 13.5px; }
+
+/* The tab strip sits between the rail and the panel it switches. */
+.ov__zone > .tabs { margin-bottom: 16px; }
+
+/* --- certificates: media cards + the verification card ------------------- */
+
+.cert-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+
+.cert-card { display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; }
+.cert-card__media {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--sunken);
+  border-bottom: 1px solid var(--line-soft);
+}
+.cert-card__body { padding: 16px 18px 18px; }
+.cert-card__status { display: flex; align-items: center; gap: 10px; }
+.cert-card__code { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.cert-card__title { margin-top: 12px; font-family: var(--display); font-size: 15px; font-weight: 700; }
+.cert-card__meta { margin-top: 5px; font-size: 12.5px; color: var(--muted); }
+.cert-card__total { margin-top: 14px; font-family: var(--mono); font-size: 20px; font-weight: 600; }
+.cert-card__total span { display: block; margin-top: 4px; font-family: var(--body); font-size: 11.5px; color: var(--muted); }
+.cert-card__foot { display: flex; flex-wrap: wrap; gap: 9px; padding: 12px 16px; border-top: 1px solid var(--line-soft); }
+
+.cert-verify { display: grid; gap: 14px; padding: 20px; }
+.cert-verify__sub { margin-top: 6px; font-size: 13px; line-height: 1.6; color: var(--muted); max-width: 74ch; }
+.cert-verify__row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.cert-verify__row .input { max-width: 320px; }
+
+@media (max-width: 1240px) {
+  .cert-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 900px) {
+  .acct-filters__note { margin-left: 0; flex-basis: 100%; }
+  .acct-search { min-width: 0; flex: 1 1 100%; }
+}
+
+@media (max-width: 720px) {
+  .cert-grid { grid-template-columns: minmax(0, 1fr); }
+  .cert-verify__row .input { max-width: none; flex: 1 1 100%; }
+  .cert-verify__row .btn { width: 100%; }
+}
+
+/* --- account detail ------------------------------------------------------ */
+
+.acc-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.16s;
+}
+.acc-back:hover { color: var(--fg); }
+
+.acc-head { padding: 20px 20px 0; }
+.acc-head__top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.acc-title { font-family: var(--display); font-size: clamp(22px, 2.2vw, 30px); font-weight: 800; letter-spacing: -0.03em; }
+.acc-status {
+  padding: 3px 11px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  font-family: var(--display);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.acc-status--active { color: color-mix(in oklab, var(--green) 72%, #ffffff); background: color-mix(in oklab, var(--green) 12%, transparent); }
+.acc-status--funded { color: var(--gold-2); background: color-mix(in oklab, var(--gold) 12%, transparent); }
+.acc-status--breached { color: color-mix(in oklab, var(--red) 68%, #ffffff); background: color-mix(in oklab, var(--red) 14%, transparent); }
+.acc-head__actions { margin-left: auto; display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.acc-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; font-size: 13px; color: var(--muted); }
+.acc-meta b { color: var(--fg); font-weight: 600; }
+.acc-meta__sep { color: var(--line); }
+.acc-tabs { margin-top: 16px; border-bottom: 0; }
+.acc-tabs .tab { padding-bottom: 14px; }
+
+.acc-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  border-radius: var(--r-lg);
+  border: 1px solid color-mix(in oklab, var(--red) 42%, transparent);
+  background: color-mix(in oklab, var(--red) 10%, transparent);
+  color: var(--fg);
+  font-size: 14px;
+}
+.acc-banner > svg { flex: none; color: color-mix(in oklab, var(--red) 62%, #ffffff); }
+.acc-banner .btn { margin-left: auto; flex: none; }
+
+/* stat cards ------------------------------------------------------------- */
+
+.acc-cols { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 18px; align-items: stretch; }
+.acc-cols--even { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.acc-col { display: grid; gap: 18px; align-content: start; }
+.acc-grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+/* Ten trade-quality figures, so five columns fill two whole rows and leave no
+   holes at the end of the block. */
+.acc-grid-5 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 18px; }
+.acc-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.acc-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+
+.stat-card { display: flex; flex-direction: column; gap: 10px; padding: 18px; }
+/* In a row of objective cards the meters line up along the bottom edge. */
+.stat-card > .meter { margin-top: auto; }
+.stat-card__head { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: color-mix(in oklab, var(--fg) 88%, var(--muted)); }
+.stat-card__value { font-family: var(--display); font-size: 30px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+.stat-card__value--sm { font-size: 24px; }
+.stat-card__foot { font-size: 12px; color: var(--muted); }
+.stat-card__foot b { color: var(--fg); font-weight: 600; font-family: var(--mono); }
+.stat-card__split { display: flex; align-items: baseline; gap: 10px; }
+.stat-card--tone-bad .stat-card__value { color: color-mix(in oklab, var(--red) 70%, #ffffff); }
+.stat-card--tone-good .stat-card__value { color: color-mix(in oklab, var(--green) 74%, #ffffff); }
+
+.clock { display: flex; gap: 14px; align-items: flex-end; }
+.clock__part { display: grid; }
+.clock__num { font-family: var(--display); font-size: 30px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+.clock__label { margin-top: 4px; font-size: 11.5px; color: var(--muted); }
+
+/* meters and objective rows --------------------------------------------- */
+
+.meter { height: 4px; border-radius: 999px; background: var(--sunken); overflow: hidden; }
+.meter > i { display: block; height: 100%; border-radius: 999px; background: var(--violet-2); }
+.meter--good > i { background: var(--green); }
+.meter--bad > i { background: var(--red); }
+.meter--warn > i { background: var(--gold); }
+
+.obj-row { display: grid; gap: 8px; padding: 14px 0; border-bottom: 1px solid var(--line-soft); }
+.obj-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.obj-row__top { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: color-mix(in oklab, var(--fg) 88%, var(--muted)); }
+.obj-row__value { margin-left: auto; font-family: var(--mono); font-size: 13px; color: var(--fg); }
+.obj-row__state { flex: none; }
+.obj-row__state--good { color: var(--green); }
+.obj-row__state--warn { color: var(--gold-2); }
+.obj-row__state--bad { color: var(--red); }
+.obj-row__note { display: flex; justify-content: space-between; gap: 10px; font-size: 11.5px; color: var(--muted); }
+
+/* banded chart ----------------------------------------------------------- */
+
+/* The chart and the level overlay share this box, so every tag lands on its
+   own dashed line. The 14px inset gives the tallest tag room to sit on the
+   topmost level without colliding with the card above it. */
+.band-chart { position: relative; height: 330px; padding: 14px 0; }
+.band-chart__levels { position: absolute; inset: 14px 0; pointer-events: none; }
+.band-chart__level {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1px dashed currentColor;
+  opacity: 0.8;
+}
+.band-chart__level--good { color: var(--green); }
+.band-chart__level--info { color: var(--violet-2); }
+.band-chart__level--muted { color: var(--muted); }
+.band-chart__level--bad { color: var(--red); }
+.band-chart__tag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translateY(-50%);
+  padding: 3px 9px;
+  border-radius: 7px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: nowrap;
+  color: currentColor;
+  border: 1px solid currentColor;
+  /* Opaque plate so the dashes never run through the label. */
+  background: color-mix(in srgb, var(--card) 94%, transparent);
+  backdrop-filter: blur(4px);
+}
+
+/* calendar --------------------------------------------------------------- */
+
+/* A month of bars over a ledger of sessions. The reference's grid — a "Week N"
+   summary column and seven tall day cells — is gone: it answered "which squares
+   were green" and left every total to the reader. */
+
+.cal-strip { padding: 18px 18px 14px; }
+.cal-strip__bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 64px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cal-strip__bars li { flex: 1 1 0; min-width: 0; height: 100%; display: flex; align-items: flex-end; }
+.cal-tick {
+  appearance: none;
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.cal-tick > i {
+  display: block;
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  background: color-mix(in oklab, var(--muted) 34%, transparent);
+  transition: filter 0.16s var(--ease), box-shadow 0.16s var(--ease);
+}
+.cal-tick.is-win > i { background: linear-gradient(180deg, var(--green) 0%, color-mix(in oklab, var(--green) 40%, transparent) 100%); }
+.cal-tick.is-loss > i { background: linear-gradient(180deg, var(--red) 0%, color-mix(in oklab, var(--red) 40%, transparent) 100%); }
+.cal-tick.is-idle, .cal-tick[disabled] { cursor: default; }
+.cal-tick.is-idle > i { background: var(--line-soft); }
+.cal-tick:hover:not([disabled]) > i { filter: brightness(1.3); }
+.cal-tick:focus-visible { outline: none; }
+.cal-tick:focus-visible > i { box-shadow: 0 0 0 2px var(--violet-2); }
+.cal-tick.is-open > i { box-shadow: 0 0 0 2px color-mix(in oklab, var(--violet-2) 70%, transparent); }
+
+.cal-strip__foot { display: flex; align-items: center; gap: 12px; margin-top: 12px; font-size: 11.5px; color: var(--muted); }
+.cal-strip__foot .mono { font-family: var(--mono); }
+.cal-legend { display: inline-flex; align-items: center; gap: 8px; margin-inline: auto; }
+.cal-legend__swatch { display: inline-block; width: 9px; height: 9px; border-radius: 2px; }
+.cal-legend__swatch.is-win { background: var(--green); }
+.cal-legend__swatch.is-loss { background: var(--red); }
+.cal-legend__swatch.is-idle { background: var(--line-soft); }
+
+/* The month's own totals, so nothing is added up by hand. */
+.cal-facts {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 0;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+}
+.cal-facts > div { padding: 16px 18px; border-right: 1px solid var(--line-soft); }
+.cal-facts > div:last-child { border-right: 0; }
+.cal-facts dt { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.cal-facts dd { margin: 9px 0 5px; font-family: var(--display); font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+.cal-facts dd.up { color: color-mix(in oklab, var(--green) 74%, #ffffff); }
+.cal-facts dd.down { color: color-mix(in oklab, var(--red) 70%, #ffffff); }
+.cal-facts small { font-size: 11.5px; color: var(--muted); }
+.cal-facts small b { font-family: var(--mono); font-weight: 500; color: var(--fg); }
+
+.cal-ledger tbody tr.is-row:focus-visible { outline: 2px solid var(--violet-2); outline-offset: -2px; }
+.cal-ledger__day { margin-right: 7px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.cal-ledger__chev { width: 38px; text-align: right; color: var(--muted); }
+.cal-ledger tbody tr.is-row:hover .cal-ledger__chev { color: var(--fg); }
+.cal-ledger__detail > td { padding: 0; background: color-mix(in oklab, var(--violet) 6%, transparent); }
+.cal-detail { display: grid; gap: 10px; padding: 14px 18px 16px; }
+.cal-detail__head { display: flex; align-items: baseline; gap: 12px; font-size: 12.5px; color: var(--muted); }
+.cal-detail__head > span:last-child { margin-left: auto; }
+.cal-detail__head b { font-family: var(--display); font-size: 15px; font-weight: 800; }
+/* A second header inside a row must not stick to the top of the viewport. */
+.cal-detail__table thead th { position: static; background: none; }
+
+.modal__head h3.is-label {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+
+/* trades + analytics ----------------------------------------------------- */
+
+.gauge { display: grid; justify-items: center; gap: 10px; }
+.gauge__svg { width: 100%; max-width: 240px; height: auto; }
+
+.kv-inline { display: grid; gap: 10px; }
+.kv-inline__row { display: flex; align-items: baseline; gap: 10px; font-size: 13px; }
+.kv-inline__row span { color: var(--muted); }
+.kv-inline__row b { margin-left: auto; font-family: var(--mono); font-weight: 500; }
+
+.side-split { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--sunken); }
+.side-split__long { background: var(--green); }
+.side-split__short { background: var(--red); }
+
+.streak-blocks { display: flex; flex-wrap: wrap; gap: 4px; }
+.streak-blocks i { width: 22px; height: 22px; border-radius: 5px; background: color-mix(in oklab, var(--red) 40%, var(--sunken)); }
+.streak-blocks i.is-win { background: color-mix(in oklab, var(--green) 45%, var(--sunken)); }
+
+.bar-list { display: grid; gap: 10px; }
+.bar-list__row { display: grid; gap: 6px; }
+.bar-list__top { display: flex; align-items: baseline; gap: 10px; font-size: 12.5px; }
+.bar-list__top span { color: var(--muted); }
+.bar-list__top b { margin-left: auto; font-family: var(--mono); font-weight: 500; }
+
+/* Results by instrument / strategy is a table now, not a bar chart: the old
+   absolutely positioned bars overlapped past three groups and collided into
+   "GER30NAS100GBPJPY". The bar lives inside the metric column instead, drawn
+   behind its own value from the right edge the numbers are aligned to. */
+.data--bars .th-sort { display: inline-flex; align-items: center; gap: 6px; }
+.data--bars .th-sort .ico { opacity: 0.85; }
+.data--bars tbody td { position: relative; }
+/* The track is inset to the cell's padding and the fill is measured against
+   that, so the longest bar stops exactly at the cell edge instead of bleeding
+   under the column beside it. */
+.data--bars .cell-bar { position: absolute; inset: 21% 14px; pointer-events: none; }
+.data--bars .cell-bar > i {
+  display: block;
+  height: 100%;
+  margin-left: auto;
+  border-radius: 3px;
+  background: color-mix(in oklab, var(--violet) 16%, transparent);
+}
+.data--bars .cell-bar--win > i { background: color-mix(in oklab, var(--green) 20%, transparent); }
+.data--bars .cell-bar--loss > i { background: color-mix(in oklab, var(--red) 20%, transparent); }
+.data--bars .cell-val { position: relative; }
+
+@media (max-width: 1240px) {
+  .acc-cols, .acc-cols--even { grid-template-columns: minmax(0, 1fr); }
+  .acc-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .acc-grid-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .acc-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cal-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cal-facts > div { border-right: 0; border-bottom: 1px solid var(--line-soft); }
+}
+
+@media (max-width: 900px) {
+  .acc-head { padding: 16px 15px 0; }
+  .acc-head__actions { margin-left: 0; flex-basis: 100%; }
+  .band-chart { height: 240px; }
+  .cal-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cal-strip { padding: 14px 14px 10px; }
+  .cal-strip__bars { height: 48px; }
+}
+
+@media (max-width: 720px) {
+  .acc-grid-4, .acc-grid-3, .acc-grid-2 { grid-template-columns: minmax(0, 1fr); }
+  .cal-facts { grid-template-columns: minmax(0, 1fr); }
+  .cal-legend { display: none; }
+}
+
+/* Account number: the caption on a rail card, and the table's first column
+   with its own copy control. */
+.acct__names { display: grid; min-width: 0; }
+.acct__number { margin-top: 2px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+.acct-num { display: inline-flex; align-items: center; gap: 6px; }
+.acct-num .mono { font-size: 13px; font-weight: 500; }
+.row-btn--copy { width: 26px; height: 26px; border-radius: 8px; }
+
+/* Account mentions are links; keep them reading as the surrounding type. */
+.acct__names, .acct-num a, .alert__title a, .cert-card__meta a, .cert__meta a {
+  color: inherit;
+  text-decoration: none;
+}
+.acct__names:hover .acct__tag, .acct-num a:hover, .alert__title a:hover,
+.cert-card__meta a:hover, .cert__meta a:hover { color: var(--violet-text); text-decoration: underline; }
+
+/* A switcher row carries two actions: switch here, or open the account. */
+.menu__row { display: flex; align-items: center; gap: 2px; }
+.menu__row > .menu__item { flex: 1 1 auto; min-width: 0; }
+.menu__open {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px; height: 30px;
+  border-radius: 9px;
+  color: var(--muted);
+  text-decoration: none;
+  transition: background 0.16s, color 0.16s;
+}
+.menu__open:hover { color: var(--fg); background: var(--raise-2); }
+
+/* --- the full chart card: toolbar, plot frame, axis, live dot ------------- */
+
+.chart-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.chart-tools__icons { display: flex; gap: 8px; }
+.tool {
+  display: grid;
+  place-items: center;
+  width: 36px; height: 36px;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: var(--raise);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.16s, border-color 0.16s, background 0.16s;
+}
+.tool:hover:not([disabled]) { color: var(--fg); border-color: var(--violet); background: var(--raise-2); }
+.tool[disabled] { opacity: 0.4; cursor: not-allowed; }
+.tool.is-on { color: var(--violet-2); border-color: color-mix(in oklab, var(--violet) 60%, transparent); }
+.chart-tools__group { display: inline-flex; align-items: center; gap: 9px; }
+.chart-tools__group--end { margin-left: auto; }
+.chart-tools__label { font-size: 12.5px; color: var(--muted); }
+.chart-tools .seg__btn { display: inline-flex; align-items: center; gap: 6px; }
+
+.chart-frame { padding: 18px 18px 14px; }
+.chart-plot { position: relative; height: 368px; }
+.chart-dot {
+  position: absolute;
+  right: 0;
+  width: 11px; height: 11px;
+  margin-top: -5.5px;
+  border-radius: 50%;
+  background: var(--fg);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--fg) 26%, transparent);
+}
+.chart-axis { position: absolute; inset: 0; pointer-events: none; }
+.chart-axis span {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+  padding-left: 8px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--card) 72%, transparent);
+}
+.chart-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+.chart-foot__hint { margin-inline: auto; }
+
+@media (max-width: 900px) {
+  .chart-tools__group--end { margin-left: 0; }
+  .chart-plot { height: 300px; }
+}
+
+/* The breach banner's call to action is a link in the banner's own colour,
+   exactly as the reference draws it — not a ghost pill. */
+.acc-banner__cta {
+  margin-left: auto;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 2px;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font-family: var(--display);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 1px solid color-mix(in oklab, var(--fg) 34%, transparent);
+  transition: border-color 0.16s, color 0.16s;
+}
+.acc-banner__cta:hover { color: #fff; border-bottom-color: #fff; }
+
+/* Per-card pass/fail marker in the objective cards' head. */
+.stat-card__state { margin-left: auto; display: grid; place-items: center; }
+
+/* A losing account tints its P&L card, not the number. */
+.stat-card--glow-bad { position: relative; overflow: hidden; }
+.stat-card--glow-bad::after,
+.stat-card--glow-good::after {
+  content: "";
+  position: absolute;
+  inset: auto -20% -60% 30%;
+  height: 150px;
+  pointer-events: none;
+}
+.stat-card--glow-bad::after { background: radial-gradient(60% 100% at 50% 100%, color-mix(in oklab, var(--red) 26%, transparent), transparent 70%); }
+.stat-card--glow-good::after { background: radial-gradient(60% 100% at 50% 100%, color-mix(in oklab, var(--green) 22%, transparent), transparent 70%); }
+.stat-card > * { position: relative; z-index: 1; }
+
+/* The balance curve inside the performance card. */
+.perf-chart { height: 190px; }
+
+/* Countdown read as one clock, the way the reference prints it. */
+.clock-clock {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  /* Sized to stay on one line inside a half-width card — the reference prints
+     the countdown as a single readout, never wrapped. */
+  font-size: clamp(22px, 1.9vw, 28px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--fg);
+}
+
+/* In a stretched card the head stays pinned to the top and the foot to the
+   bottom; whatever sits between them centres in the space that is left, so a
+   short body never hangs off the top edge or floats at the bottom. */
+.stat-card--center > :not(.stat-card__head):not(.stat-card__foot) { margin-block: auto; }
+
+/* Win-rate ring with its figure inside, beside the rows it came from. */
+.metric-viz { display: flex; align-items: center; gap: 18px; margin-top: 4px; }
+.donut { flex: none; width: 92px; height: 92px; }
+/* The unfilled arc still has to read as a track, not as a hole. */
+.donut circle:first-of-type { stroke: color-mix(in oklab, var(--fg) 13%, transparent); }
+.metric-viz__rows { flex: 1 1 auto; min-width: 0; }
+.metric-viz__rows .kv-inline__row { padding: 8px 0; }
+
+/* A meter that has to read as a bar chart, not as a progress line. */
+.meter--md { height: 6px; }
+
+/* Two-column long/short table, ruled like the reference. */
+.ls-table { display: grid; }
+.ls-table__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 92px 92px;
+  align-items: baseline;
+  gap: 8px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+.ls-table__row:last-child { border-bottom: 0; }
+.ls-table__row span { color: var(--muted); font-size: 12.5px; }
+.ls-table__row b { font-family: var(--mono); font-size: 13px; font-weight: 500; text-align: right; }
+.ls-table__row--head { border-bottom-color: var(--line); }
+.ls-table__row--head span { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; text-align: right; }
+.ls-table__row--head span:first-child { text-align: left; }
+
+.streak-current { position: relative; }
+.streak-arrow { position: absolute; top: 14px; right: 14px; font-size: 13px; }
+.streak-list { display: flex; flex-wrap: wrap; gap: 4px; }
+.streak-cell { display: grid; gap: 3px; justify-items: center; flex: 1 1 24px; min-width: 0; }
+.streak-cell i { display: block; width: 100%; height: 20px; border-radius: 5px; background: color-mix(in oklab, var(--red) 40%, var(--sunken)); }
+.streak-cell i.is-win { background: color-mix(in oklab, var(--green) 45%, var(--sunken)); }
+.streak-cell em {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-style: normal;
+  color: var(--muted);
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* Ruled stat rows (the semisphere gauge card). */
+.kv-inline--ruled .kv-inline__row { padding: 9px 0; border-bottom: 1px solid var(--line-soft); }
+.kv-inline--ruled .kv-inline__row:last-child { border-bottom: 0; }
+.gauge__ends { display: flex; justify-content: space-between; width: 100%; font-size: 11.5px; }
+
+/* --- full-width session strip ------------------------------------------- */
+
+.elapsed {
+  /* .panel is a column flex container; this strip is a row. */
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 28px;
+  padding: 20px 22px;
+}
+.elapsed__clock { display: grid; gap: 10px; min-width: 0; }
+.elapsed__facts {
+  flex: 1 1 420px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  margin-left: auto;
+  padding-left: 28px;
+  border-left: 1px solid var(--line-soft);
+}
+.elapsed__facts dt { font-size: 12px; color: var(--muted); }
+.elapsed__facts dd {
+  margin-top: 6px;
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.elapsed__facts dd.good { color: color-mix(in oklab, var(--green) 74%, #ffffff); }
+.elapsed__facts dd.bad { color: color-mix(in oklab, var(--red) 70%, #ffffff); }
+.elapsed__facts dd small { display: block; margin-top: 5px; font-family: var(--body); font-size: 11.5px; font-weight: 400; color: var(--muted); letter-spacing: 0; }
+
+@media (max-width: 1240px) {
+  .elapsed__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-left: 22px; }
+}
+@media (max-width: 720px) {
+  .elapsed { gap: 18px; }
+  .elapsed__facts { grid-template-columns: minmax(0, 1fr); padding-left: 0; border-left: 0; border-top: 1px solid var(--line-soft); padding-top: 18px; margin-left: 0; }
+}
+
+/* ==========================================================================
+   Market · economic calendar
+   ========================================================================== */
+
+.mcal-head { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.mcal-title { font-family: var(--display); font-size: clamp(24px, 2.4vw, 32px); font-weight: 800; letter-spacing: -0.03em; }
+.mcal-head__actions { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.mcal-zone { width: auto; min-height: 40px; padding-block: 0; font-size: 13.5px; }
+
+/* Policy card, two icon rows like the reference's status block. */
+.mcal-status {
+  display: grid;
+  gap: 12px;
+  padding: 18px 20px;
+  border-radius: var(--r-lg);
+  border: 1px solid color-mix(in oklab, var(--green) 34%, transparent);
+  background: color-mix(in oklab, var(--green) 8%, transparent);
+}
+.mcal-status__row { display: flex; align-items: center; gap: 11px; font-size: 13.5px; }
+.mcal-status__row svg { flex: none; color: color-mix(in oklab, var(--green) 74%, #ffffff); }
+.mcal-status__row + .mcal-status__row svg { color: color-mix(in oklab, var(--green) 74%, #ffffff); }
+.mcal-status__row b { font-family: var(--display); font-size: 15px; }
+
+.mcal-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.mcal-filters .select { width: auto; min-width: 158px; min-height: 40px; padding-block: 0; font-size: 13.5px; }
+.mcal-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  padding: 4px 6px 4px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--raise);
+}
+.mcal-range__label { display: inline-flex; align-items: center; gap: 9px; font-size: 13px; color: var(--fg); }
+.mcal-range__label svg { color: var(--muted); }
+.mcal-filters__count { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+.mcal-range + .mcal-filters__count { margin-left: 0; }
+
+/* --- the events table --------------------------------------------------- */
+
+.mcal { overflow: hidden; }
+.mcal__cols,
+.mcal__row {
+  display: grid;
+  grid-template-columns: 92px 92px 108px minmax(0, 1fr) 96px 96px 84px;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+}
+.mcal__cols {
+  background: color-mix(in oklab, var(--violet) 24%, transparent);
+  border-bottom: 1px solid color-mix(in oklab, var(--violet) 40%, transparent);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: color-mix(in oklab, var(--fg) 86%, var(--muted));
+}
+.mcal__cols .num, .mcal__row .num { text-align: right; }
+.mcal__row { border-bottom: 1px solid var(--line-soft); font-size: 13.5px; }
+.mcal__row:hover { background: var(--raise); }
+.mcal__ccy { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+.mcal__title { min-width: 0; }
+.mcal__actual { color: color-mix(in oklab, var(--fg) 92%, var(--muted)); font-family: var(--mono); }
+
+.mcal__day { border-bottom: 1px solid var(--line-soft); }
+.mcal__day:last-child { border-bottom: 0; }
+.mcal__bar {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 15px 20px;
+  border: 0;
+  background: var(--sunken);
+  color: var(--fg);
+  font-family: var(--display);
+  font-size: 14.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.16s;
+}
+.mcal__bar:hover { background: var(--raise); }
+.mcal__chevron { display: grid; place-items: center; color: var(--muted); transition: transform 0.18s var(--ease); }
+.mcal__chevron.is-closed { transform: rotate(-90deg); }
+.mcal__count { font-size: 12.5px; color: var(--muted); font-weight: 400; }
+.mcal__none { padding: 22px 20px; text-align: center; font-size: 13px; color: var(--muted); }
+
+/* Impact pills — the one place these four tones appear together. */
+.impact {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-family: var(--display);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.impact--high { color: color-mix(in oklab, var(--red) 66%, #ffffff); background: color-mix(in oklab, var(--red) 20%, transparent); }
+.impact--medium { color: var(--gold-2); background: color-mix(in oklab, var(--gold) 18%, transparent); }
+.impact--low { color: color-mix(in oklab, var(--green) 74%, #ffffff); background: color-mix(in oklab, var(--green) 16%, transparent); }
+.impact--holiday { color: var(--muted); background: var(--raise-2); }
+
+/* --- newsroom ----------------------------------------------------------- */
+
+.news-card { display: grid; gap: 8px; padding: 18px; align-content: start; }
+.news-card__head { display: flex; align-items: center; gap: 10px; }
+.news-card__head .stat-card__foot { margin-left: auto; }
+.news-card__title { font-family: var(--display); font-size: 16px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.3; }
+.news-card__body { font-size: 13px; line-height: 1.6; color: var(--muted); }
+
+/* Snapshot stamp + feed label in the tab head. */
+.nr-feed { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.nr-feed .ico { color: var(--violet-text); }
+.nr-stamp { font-family: var(--mono); font-size: 12px; color: var(--muted-dim); }
+
+/* Lead story — the newest wire item, full width, publisher's own image. */
+.nr-lead {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  overflow: hidden;
+  padding: 0;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.16s;
+}
+.nr-lead:hover { border-color: var(--violet); }
+.nr-lead__media { position: relative; min-height: 250px; background: var(--sunken); }
+.nr-lead__media img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.nr-lead__body { display: grid; align-content: center; gap: 12px; padding: 26px 30px; }
+.nr-lead__kicker { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--muted); }
+.nr-lead__kicker b { color: var(--fg); font-weight: 600; }
+.nr-lead__title {
+  font-family: var(--display);
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.nr-lead__cta { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--violet-text); }
+.nr-lead__cta .ico { color: var(--muted); }
+
+.nr-desk, .nr-wire { display: grid; gap: 14px; margin-top: 24px; }
+.nr-sub { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.nr-sub h2 { font-family: var(--display); font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+
+.nr-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* The shared select is fluid by default; here it should size to its options. */
+.nr-tools .select { width: auto; min-width: 190px; flex: 0 0 auto; }
+.nr-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 1 1 240px;
+  max-width: 380px;
+  height: 42px;
+  padding: 0 13px;
+  border-radius: var(--r);
+  border: 1px solid var(--line);
+  background: var(--sunken);
+  color: var(--muted);
+  transition: border-color 0.16s, background 0.16s;
+}
+.nr-search:focus-within { border-color: var(--violet); background: var(--raise); }
+.nr-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 13.5px;
+  outline: none;
+}
+.nr-search input::placeholder { color: var(--muted); }
+.nr-search input::-webkit-search-cancel-button { opacity: 0.45; }
+
+.nr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(262px, 1fr)); gap: 14px; }
+.nr-card {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--card);
+  color: inherit;
+  text-decoration: none;
+  overflow: hidden;
+  transition: border-color 0.16s, transform 0.16s;
+}
+.nr-card:hover { border-color: var(--violet); transform: translateY(-1px); }
+.nr-card__thumb { aspect-ratio: 5 / 3; background: linear-gradient(180deg, var(--sunken), var(--surface)); }
+.nr-card__thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.nr-card__meta { display: flex; align-items: baseline; gap: 8px; padding: 0 14px; font-size: 12px; color: var(--muted); }
+.nr-card__meta b { color: var(--fg); font-size: 12.5px; font-weight: 600; }
+.nr-card__meta span { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--muted-dim); }
+.nr-card__title {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  padding: 0 14px;
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+.nr-card__go {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--glass-strong);
+  color: var(--muted);
+}
+.nr-card:hover .nr-card__go { color: var(--fg); }
+
+.nr-note { margin-top: 18px; font-size: 12px; line-height: 1.65; color: var(--muted-dim); }
+.nr-note code { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+
+@media (max-width: 1240px) {
+  .mcal__cols, .mcal__row { grid-template-columns: 80px 76px 100px minmax(0, 1fr) 84px 84px 74px; gap: 10px; }
+}
+
+@media (max-width: 900px) {
+  .mcal-range { margin-left: 0; }
+  .mcal-filters__count { margin-left: 0; flex-basis: 100%; }
+  /* Below this the seven columns cannot hold their content honestly, so the
+     table becomes labelled rows. */
+  .mcal__cols { display: none; }
+  .mcal__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 12px;
+    align-items: baseline;
+  }
+  .mcal__row > .num, .mcal__row > .mcal__title, .mcal__row > .impact { grid-column: 1 / -1; text-align: left; }
+
+  /* The lead story stacks rather than squeezing two columns of headline. */
+  .nr-lead { grid-template-columns: minmax(0, 1fr); }
+  .nr-lead__media { min-height: 0; aspect-ratio: 16 / 9; }
+  .nr-lead__body { padding: 20px 22px; }
+  .nr-lead__title { font-size: 21px; }
+  .nr-sub { flex-wrap: wrap; }
+}
+
+/* Round icon arrows used by the account rail, the trades pager and the market
+   week picker. These rules were dropped when overview.css was rewritten into
+   this file, which left every one of them rendering as a bare UA button. */
+.rail__arrow {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px; height: 34px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--raise);
+  color: var(--fg);
+  cursor: pointer;
+  transition: border-color 0.16s, background 0.16s, color 0.16s;
+}
+.rail__arrow:hover:not([disabled]) { border-color: var(--violet); background: var(--raise-2); }
+.rail__arrow[disabled] { opacity: 0.4; cursor: not-allowed; }
+
+/* ==========================================================================
+   Utility screens — Tools, Manage, Community, Help, Settings
+   --------------------------------------------------------------------------
+   These five screens were the last HTML pages in the project. They are Vue
+   components now, and they lean on the design system in app.css for every
+   primitive (cards, fields, tables, switches, callouts); what lives here is
+   only the page-level spacing and the few pieces those screens own. The
+   `.util-*` helpers are shared by all five.
+   ========================================================================== */
+
+.util-head { margin-bottom: 22px; }
+.util-head h1 { margin-top: 8px; }
+.util-head p { margin-top: 8px; max-width: 70ch; }
+.util-gap { margin-bottom: 18px; }
+.util-note { font-size: 12.5px; margin-top: 3px; }
+.util-foot { display: flex; gap: 10px; flex-wrap: wrap; }
+.util-warn { margin-top: 18px; }
+
+/* --- Main · Position sizer ----------------------------------------------- */
+/* The page used to carry its own hero, panel chrome, seg, result tiles and
+   summary list — 59 lines of `.psz-*` sitting in app.css, the shared sheet. It
+   is built from the portal's own parts now (page head, panels, stat cards, seg,
+   kv-inline, obj-row meters), and only what is genuinely the sizer's is here. */
+
+/* Inputs and results are different heights; each panel takes its own rather
+   than stretching, which is what left a void under the fields. */
+.siz-cols { align-items: start; }
+.siz-fields { gap: 14px; }
+.siz-labelrow { display: flex; align-items: baseline; gap: 10px; }
+.siz-labelrow > label { white-space: nowrap; }
+.siz-link {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--violet-text);
+  cursor: pointer;
+}
+.siz-link:hover { text-decoration: underline; }
+.siz-prefix { position: absolute; left: 15px; font-size: 14px; color: var(--muted); pointer-events: none; }
+.siz-risk { display: flex; align-items: center; gap: 10px; }
+.siz-risk .input { flex: 1 1 auto; min-width: 0; }
+
+/* The arithmetic, so the size above can be checked rather than trusted. */
+.siz-math { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.siz-math__step {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: var(--r);
+  border: 1px solid var(--line-soft);
+  background: var(--sunken);
+}
+.siz-math__step.is-last {
+  border-color: color-mix(in oklab, var(--violet) 42%, transparent);
+  background: color-mix(in oklab, var(--violet) 12%, var(--sunken));
+}
+.siz-math__label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.siz-math__value { font-family: var(--display); font-size: 19px; font-weight: 800; letter-spacing: -0.02em; }
+.siz-math__note { font-size: 11.5px; color: var(--muted); }
+.siz-math__arrow {
+  position: absolute;
+  top: 50%;
+  right: -13px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+.siz-limits { display: grid; gap: 14px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+.siz-limits__head { display: flex; align-items: center; gap: 12px; font-size: 12.5px; color: var(--muted); }
+.siz-limits__head > span:last-child { margin-left: auto; }
+
+.siz-steps { display: grid; gap: 12px; margin: 0; padding: 6px 18px 18px; list-style: none; }
+.siz-steps li { display: flex; align-items: baseline; gap: 12px; font-size: 13.5px; }
+.siz-steps b {
+  flex: 0 0 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--sunken);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.siz-notes { display: grid; gap: 12px; margin: 0; padding: 6px 18px 18px; list-style: none; }
+.siz-notes li { position: relative; padding-left: 18px; font-size: 13.5px; color: color-mix(in oklab, var(--fg) 88%, var(--muted)); }
+.siz-notes li::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 8px;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--violet-2);
+}
+/* "1.00 lots" — the unit is a suffix on the figure, not part of it. */
+.stat-card__value small { margin-left: 7px; font-size: 13px; font-weight: 600; letter-spacing: 0; color: var(--muted); }
+
+.siz-footnote { max-width: 100ch; font-size: 12.5px; line-height: 1.7; color: var(--muted); }
+.siz-footnote b { color: color-mix(in oklab, var(--fg) 88%, var(--muted)); }
+
+@media (max-width: 1240px) {
+  .siz-math { grid-template-columns: minmax(0, 1fr); }
+  .siz-math__arrow { display: none; }
+}
+
+/* --- Learning · FPT Learn ------------------------------------------------ */
+/* A hub: four pillars, the path they sit on, where the material lives, and the
+   community. Nothing here sells, and nothing pretends the portal teaches — the
+   material is on the platform and the page says so. */
+
+/* All four pillars are one row, so they stretch to a shared height rather than
+   one running longer than the others. */
+.learn-pillar { gap: 12px; }
+.learn-pillar__icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  border: 1px solid var(--line-soft);
+  background: var(--sunken);
+  color: var(--violet-text);
+}
+.learn-pillar__label { font-family: var(--display); font-size: 15px; font-weight: 700; }
+.learn-pillar__note { font-size: 12.5px; line-height: 1.6; color: var(--muted); }
+
+.learn-body { max-width: 96ch; font-size: 13.5px; line-height: 1.7; color: color-mix(in oklab, var(--fg) 88%, var(--muted)); }
+.learn-body b { color: var(--fg); }
+
+.learn-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 4px 0 0; }
+.learn-facts dt { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.learn-facts dd { margin-top: 6px; font-family: var(--display); font-size: 15px; font-weight: 700; }
+
+.learn-community { border-color: color-mix(in oklab, var(--violet) 26%, transparent); }
+.learn-community__body { display: grid; gap: 12px; padding: 24px 22px; }
+.learn-community__title {
+  max-width: 34ch;
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+@media (max-width: 1240px) {
+  .learn-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* --- Main · Platforms ---------------------------------------------------- */
+
+/* The picker. Each platform is one button — the whole card is the target — and
+   the selected one lifts out of the row on the brand's violet, the way the
+   account rail marks the active card. */
+.plat-picker { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 16px 18px 18px; }
+.plat-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  text-align: left;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  background: var(--raise);
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.16s var(--ease), background 0.16s var(--ease), box-shadow 0.16s var(--ease);
+}
+.plat-card:hover { border-color: color-mix(in oklab, var(--violet) 46%, transparent); }
+.plat-card:focus-visible { outline: 2px solid var(--violet-2); outline-offset: 2px; }
+.plat-card.is-on {
+  border-color: color-mix(in oklab, var(--violet) 62%, transparent);
+  background: color-mix(in oklab, var(--violet) 13%, var(--raise));
+  box-shadow: 0 22px 40px -30px color-mix(in oklab, var(--violet) 90%, transparent);
+}
+
+/* The vendor's own app icon: a rounded square of its own artwork, framed the
+   same way for both so neither is recoloured to match the page. */
+.plat-card__logo {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 11px;
+  border: 1px solid var(--line-soft);
+}
+.plat-card__id { display: grid; gap: 3px; min-width: 0; }
+.plat-card__name { font-family: var(--display); font-size: 17px; font-weight: 700; }
+.plat-card__surfaces { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+.plat-card__count { margin-left: auto; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.plat-card__count b { font-family: var(--mono); font-weight: 600; color: var(--fg); }
+
+/* The downloads table: a device glyph and the OS beside it. */
+.plat-os { display: inline-flex; align-items: center; gap: 10px; }
+.plat-os .ico { color: var(--muted); }
+.plat-download { white-space: nowrap; }
+.plat-filter { width: 210px; min-height: 34px; font-size: 13px; }
+
+/* Which of your accounts this terminal is the one for — a foot line, not a
+   credentials block. */
+.plat-runs { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.plat-runs__link { color: var(--violet-text); font-size: 13px; }
+.plat-runs__link:hover { text-decoration: underline; }
+
+@media (max-width: 1024px) {
+  .plat-picker { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* --- Account · Manage ---------------------------------------------------- */
+/* Billing, withdrawals and methods share one screen, so the pieces they need
+   are shared too: a filter, a pager, and the little action clusters in a table
+   cell. */
+
+.mng-filter { min-height: 34px; font-size: 13px; }
+/* The one figure the withdrawals page is about, at the size it deserves. */
+.mng-total { font-family: var(--display); font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
+
+.mng-pager {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.mng-pager .select { min-height: 32px; font-size: 12.5px; width: auto; }
+.mng-pager__spacer { margin-left: auto; font-family: var(--mono); }
+.mng-invoice { width: 34px; height: 34px; border-radius: 10px; }
+.mng-link { color: var(--violet-text); }
+.mng-link:hover { text-decoration: underline; }
+.mng-label { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
+.mng-method__name { font-family: var(--display); font-size: 16px; font-weight: 700; }
+.mng-plan__name { margin-top: 4px; font-family: var(--display); font-size: 18px; font-weight: 700; }
+.mng-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 0; }
+.mng-facts dt { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.mng-facts dd { margin-top: 7px; font-family: var(--display); font-size: 16px; font-weight: 700; }
+
+/* --- Account · Agreements ------------------------------------------------ */
+
+.agr-filter { min-height: 34px; font-size: 13px; }
+.agr-title { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.agr-line { margin-top: 5px; max-width: 78ch; font-size: 12.5px; line-height: 1.6; color: var(--muted); }
+.agr-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.agr-holder__name { font-family: var(--display); font-size: 15px; font-weight: 700; }
+.agr-body { max-width: 60ch; font-size: 13px; line-height: 1.65; }
+.agr-promo { font-size: 12.5px; }
+
+/* --- Account · Manage ---------------------------------------------------- */
+
+.pg-filter { min-height: 34px; font-size: 13px; }
+/* Payout methods: one row per rail — mark, what it is, what it costs, and the
+   two things you can do with it. The default row carries the violet edge. */
+.mth-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.mth-row:last-of-type { border-bottom: 0; }
+.mth-row.is-default { background: color-mix(in oklab, var(--violet) 7%, transparent); box-shadow: inset 3px 0 0 var(--violet); }
+.mth-row__mark {
+  flex: 0 0 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--sunken);
+  color: var(--violet-text);
+}
+.mth-row__id { display: grid; gap: 4px; min-width: 0; }
+.mth-row__id b { font-family: var(--display); font-size: 17px; font-weight: 700; }
+.mth-row__id span { font-size: 12.5px; color: var(--muted); }
+.mth-row__facts { display: flex; gap: 26px; margin-left: auto; }
+.mth-row__fact { display: grid; gap: 3px; }
+.mth-row__fact em { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-style: normal; }
+.mth-row__fact b { font-family: var(--mono); font-size: 13px; font-weight: 500; }
+.mth-row__actions { display: flex; align-items: center; gap: 8px; }
+
+@media (max-width: 900px) {
+  .mth-row { flex-wrap: wrap; }
+  .mth-row__facts { margin-left: 0; }
+  .mth-row__actions { width: 100%; }
+}
+
+/* --- Community · Leaderboard --------------------------------------------- */
+
+.lb-podium__body { gap: 10px; }
+.lb-podium__id { display: flex; align-items: center; gap: 12px; }
+.lb-podium__id .rank { width: 38px; height: 38px; font-size: 15px; }
+.lb-podium__handle { font-family: var(--display); font-weight: 700; }
+.lb-filter { min-height: 34px; font-size: 13px; }
+/* The reader's own row, marked the way the reference marks it. */
+.data tbody tr.is-you { background: color-mix(in oklab, var(--violet) 14%, transparent); }
+.cmp-body { gap: 12px; }
+.cmp-head { display: flex; align-items: flex-start; gap: 12px; }
+.cmp-head .badge { margin-left: auto; }
+.cmp-name { margin-top: 4px; }
+.cmp-entry { font-size: 13px; }
+
+/* --- Account · Help (support and FAQ) ------------------------------------ */
+/* Two redirect cards. The page is a title, a line, and one card: nothing here
+   is answered in the portal, so nothing here pretends to be. */
+
+.hls-card {
+  align-items: flex-start;
+  gap: 16px;
+  max-width: 1120px;
+  padding: 28px 26px 30px;
+}
+.hls-card__mark {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--raise);
+  color: var(--muted);
+}
+.hls-card__title { margin-top: 14px; font-family: var(--display); font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+.hls-card__body { margin: 8px 0 22px; max-width: 74ch; font-size: 14px; line-height: 1.7; color: var(--muted); }
+
+
+/* --- Account · Agreements ------------------------------------------------ */
+
+.agr-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(300px, 0.9fr);
+  gap: 18px;
+  align-items: start;
+}
+.agr-body { font-size: 13.5px; }
+.agr-holder { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.agr-promo { font-size: 12.5px; }
+
+/* --- Account · Settings -------------------------------------------------- */
+/* Five sections in the reference's order, each with the page head it deserves.
+   The form shows what the desk holds and prompts for the rest; the security
+   rows carry the state the account reports. */
+
+.stg-grid { gap: 16px; }
+.stg-phone { display: flex; gap: 10px; }
+.stg-phone__dial { flex: 0 0 108px; }
+.stg-inline { justify-self: start; }
+.stg-switch__note { font-size: 12px; }
+
+/* Password fields: the eye sits inside the control. */
+.stg-secret { position: relative; display: flex; align-items: center; }
+.stg-secret .input { padding-right: 46px; }
+.stg-secret__eye {
+  position: absolute;
+  right: 6px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.stg-secret__eye:hover { color: var(--fg); background: var(--raise); }
+
+.stg-rules { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.stg-rules li { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--muted); }
+.stg-rules li .ico { color: color-mix(in oklab, var(--red) 60%, var(--muted)); }
+.stg-rules li.is-ok { color: color-mix(in oklab, var(--green) 74%, #ffffff); }
+.stg-rules li.is-ok .ico { color: color-mix(in oklab, var(--green) 74%, #ffffff); }
+
+/* Identity verification */
+.stg-verify { flex-direction: column; align-items: center; text-align: center; gap: 14px; padding: 34px 24px; }
+.stg-verify__badge {
+  width: 62px;
+  height: 62px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--green) 34%, transparent);
+  background: color-mix(in oklab, var(--green) 12%, transparent);
+  color: color-mix(in oklab, var(--green) 82%, #ffffff);
+}
+.stg-verify__title { font-family: var(--display); font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+.stg-verify__body { max-width: 62ch; font-size: 13.5px; line-height: 1.7; color: var(--muted); }
+
+/* `.panel` is a flex column, so a row has to say so — the fact cards and the
+   help strip were stacking their icon above their text without it. */
+.stg-fact { display: flex; flex-direction: row; align-items: flex-start; gap: 14px; padding: 18px 20px; }
+.stg-fact__icon {
+  flex: 0 0 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  border: 1px solid var(--line-soft);
+  background: var(--sunken);
+  color: var(--violet-text);
+}
+.stg-fact__text { display: grid; gap: 4px; min-width: 0; font-size: 12.5px; }
+.stg-fact__text b { font-family: var(--display); font-size: 14px; }
+.stg-fact__text span { color: var(--muted); line-height: 1.6; }
+
+.stg-help { display: flex; flex-direction: row; align-items: center; gap: 16px; padding: 18px 20px; font-size: 12.5px; }
+.stg-help > div { display: grid; gap: 3px; }
+.stg-help b { font-family: var(--display); font-size: 13.5px; }
+.stg-help span { color: var(--muted); }
+.stg-help__cta { margin-left: auto; }
+
+/* Rows: icon, title and note, with the action on the right. */
+.stg-row { display: flex; align-items: center; gap: 16px; padding: 18px 20px; border-bottom: 1px solid var(--line-soft); }
+.stg-row:last-child { border-bottom: 0; }
+.stg-row__icon {
+  flex: 0 0 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--sunken);
+  color: var(--muted);
+}
+.stg-row__icon--good { background: color-mix(in oklab, var(--green) 13%, transparent); color: color-mix(in oklab, var(--green) 82%, #ffffff); }
+.stg-row__icon--bad { background: color-mix(in oklab, var(--red) 13%, transparent); color: color-mix(in oklab, var(--red) 70%, #ffffff); }
+.stg-row__text { display: grid; gap: 4px; font-size: 12.5px; }
+.stg-row__text b { font-family: var(--display); font-size: 15px; font-weight: 700; }
+.stg-row__text span { color: var(--muted); }
+.stg-row__cta { margin-left: auto; }
+.stg-row--danger { background: color-mix(in oklab, var(--red) 7%, transparent); }
+.stg-row--note { background: var(--sunken); }
+
+@media (max-width: 720px) {
+  .stg-help, .stg-row { flex-wrap: wrap; }
+  .stg-help__cta, .stg-row__cta { margin-left: 0; }
+}
+
+/* --- Sign-in screen (renders without the portal shell) ------------------- */
+
+.lg-toggle {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  min-height: 44px;
+  padding: 0 12px;
+  color: var(--muted);
+}
+.lg-toggle:hover { color: var(--fg); }
+.lg-cookies { font-size: 12px; }
+.lg-cookies__link { font-size: 12px; color: var(--muted); }
+.lg-note { font-size: 12px; }
+.lg-hero__id { display: flex; align-items: center; gap: 12px; }
+.lg-hero__name { font-family: var(--display); font-weight: 700; }
+
+@media (max-width: 720px) {
+  .lg-cookies { display: none; }
+}
+
+/* --- Overview revamp · portfolio strip, card objectives, quick actions ---- */
+
+/* The book totals: the balance panel's footer row, so the page has one
+   balance block rather than an equity card and an equity strip. */
+.panel--split > .book-row {
+  grid-column: 1 / -1;
+  border-left: 0;
+  border-top: 1px solid var(--line-soft);
+  padding: 16px 22px;
+}
+.book-row .portfolio { padding: 0; border: 0; background: none; }
+
+/* What the whole book is doing, above any single account. */
+.portfolio {
+  padding: 16px 18px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--raise), var(--sunken));
+}
+.portfolio__cell { display: grid; gap: 5px; align-content: start; min-width: 0; }
+.portfolio__k {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.portfolio__v {
+  font-family: var(--display);
+  font-size: clamp(21px, 1.9vw, 27px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+.portfolio__meta { font-size: 11.5px; line-height: 1.5; color: var(--muted); }
+
+/* Objective meters on the card — the numbers the account is actually judged on. */
+.acct__obj { display: grid; gap: 7px; }
+.acct__obj-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "k v" "bar bar";
+  gap: 4px 8px;
+  align-items: baseline;
+}
+.acct__obj-k { grid-area: k; font-size: 11px; color: var(--muted); }
+.acct__obj-v { grid-area: v; font-family: var(--mono); font-size: 11px; color: var(--fg); text-align: right; }
+.acct__obj-bar {
+  grid-area: bar;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--sunken);
+  overflow: hidden;
+}
+.acct__obj-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--violet-grad);
+  transition: width 0.2s var(--ease);
+}
+.acct__obj-bar.is-good > i { background: linear-gradient(90deg, var(--green), color-mix(in oklab, var(--green) 55%, #ffffff)); }
+.acct__obj-bar.is-bad > i { background: linear-gradient(90deg, var(--red), color-mix(in oklab, var(--red) 55%, #ffffff)); }
+
+/* The "you are here" chip on the account the desk is streaming. */
+.acct__live {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--violet) 20%, transparent);
+  border: 1px solid color-mix(in oklab, var(--violet) 40%, transparent);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--violet-text);
+}
+
+.acct__quick { display: flex; align-items: center; gap: 4px; }
+.acct__qbtn {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.16s, color 0.16s, border-color 0.16s;
+}
+.acct__qbtn:hover { background: var(--raise-2); border-color: var(--line); color: var(--fg); }
+.acct__foot-bad { color: color-mix(in oklab, var(--red) 68%, #ffffff); }
+
+/* The rail's own "there is a whole table of this" tile. */
+.acct--all {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 8px;
+  text-decoration: none;
+  border-style: dashed;
+  background: transparent;
+}
+.acct--all:hover { background: var(--raise); }
+.acct__all-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--raise-2);
+  color: var(--violet-text);
+}
+.acct__all-title { font-family: var(--display); font-size: 17px; font-weight: 700; letter-spacing: -0.02em; color: var(--fg); }
+.acct__all-sub { font-size: 12px; color: var(--muted); }
+.acct__all-go { display: inline-flex; align-items: center; gap: 5px; margin-top: 2px; font-size: 12.5px; font-weight: 600; color: var(--violet-text); }
+
+/* Hero gains session context; the reference's band had none. */
+.hero__meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.hero__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--sunken);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.hero__chip .ico { color: var(--muted-dim); }
+.hero__chip--link { color: var(--violet-text); text-decoration: none; border-color: color-mix(in oklab, var(--violet) 34%, transparent); }
+.hero__chip--link:hover { background: color-mix(in oklab, var(--violet) 14%, transparent); }
+.hero__chip--link .ico { color: var(--violet-text); }
+
+.seg--sm { padding: 3px; }
+.seg--sm .seg__btn { min-height: 28px; padding: 0 11px; font-size: 12px; }
+
+@media (max-width: 1240px) {
+  .portfolio { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rail__track { grid-auto-columns: minmax(248px, calc((100% - 14px) / 2.2)); }
+}
+
+@media (max-width: 720px) {
+  .portfolio { grid-template-columns: minmax(0, 1fr); }
+  .rail__track { grid-auto-columns: minmax(240px, 84%); }
+  .rail__fade { display: none; }
+}
+
+/* --- Overview · community links ----------------------------------------- */
+
+.quick {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 16px 18px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  background: var(--raise);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.16s, background 0.16s, transform 0.16s;
+}
+.quick:hover {
+  border-color: color-mix(in oklab, var(--violet) 52%, var(--line));
+  background: var(--raise-2);
+  transform: translateY(-1px);
+}
+.quick__icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: var(--raise-2);
+  color: var(--violet-text);
+}
+.quick__title { font-family: var(--display); font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+.quick__sub { font-size: 12.5px; line-height: 1.55; color: var(--muted); }
+.quick__go { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--violet-text); }
+
+/* --- All accounts · table ------------------------------------------------- */
+
+/* The active account was marked in the markup (`.is-highlight` + aria-current)
+   but had no rule, so nothing showed it. Matches the card's active bar. */
+.data tbody tr.is-highlight { background: color-mix(in oklab, var(--violet) 9%, transparent); }
+.data tbody tr.is-highlight > td:first-child { box-shadow: inset 3px 0 0 var(--violet); }
+
+/* Totals of the filtered rows, between the table and the pager. */
+.table-book { padding: 16px 18px; border-top: 1px solid var(--line-soft); }
+
+@media (max-width: 900px) {
+  .table-book { padding: 14px 15px; }
+}
+
+/* The open book's figures need one line of provenance, not a whole panel. */
+.trades-note {
+  margin: -6px 0 4px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+/* --- Account · one scrolling page ----------------------------------------- */
+
+/* The strip sticks under the top bar, so a section can always be reached from
+   anywhere on a page this long. */
+/* The containing block has to span the sections, not one grid row of `.ov`.
+
+   `min-width: 0` is load-bearing: every section renders at once, including the
+   trade tables, whose 1220px `min-width` sits inside a scrollable wrap. A grid
+   item defaults to `min-width: auto`, so the table's floor was sizing the
+   column: the page came out 1516px wide in a 1440px viewport, and every deep
+   link — which lands with `scrollIntoView` — scrolled 76px sideways and left
+   the sidebar hanging off the left edge. */
+.acc-body { display: block; min-width: 0; }
+.acc-body > .acc-section, .acc-section > .ov { min-width: 0; }
+.acc-tabs {
+  position: sticky;
+  overflow: visible;
+  top: var(--topbar-h);
+  z-index: 6;
+  margin: 0 0 4px;
+  padding: 6px 2px 0;
+  gap: 2px;
+  border-bottom: 1px solid var(--line-soft);
+  background: color-mix(in oklab, var(--bg) 88%, transparent);
+  backdrop-filter: blur(10px);
+}
+.acc-tabs .tab { padding-bottom: 12px; }
+/* The current section, marked the way the old tabs marked the open one — but in
+   violet: this says where you are, it is not the page's action. */
+.acc-tabs .tab.is-current { color: #fff; }
+.acc-tabs .tab.is-current::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--violet-grad);
+}
+.acc-tabs__pos {
+  margin-left: auto;
+  padding-bottom: 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted-dim);
+}
+
+/* Sections: everything is on the page now, so each block says what it is and
+   the sticky bar stops short of covering its heading. */
+.acc-section { display: grid; gap: 14px; padding-top: 26px; scroll-margin-top: calc(var(--topbar-h) + 54px); }
+.acc-section + .acc-section { border-top: 1px solid var(--line-soft); }
+.acc-section__head { display: flex; align-items: baseline; gap: 12px; }
+.acc-section__title {
+  font-family: var(--display);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.acc-section__note { font-size: 12.5px; color: var(--muted); }
+
+@media (max-width: 720px) {
+  .acc-tabs { overflow-x: auto; }
+  .acc-tabs__pos { display: none; }
+  .acc-section { padding-top: 20px; }
+}

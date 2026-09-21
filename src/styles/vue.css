@@ -1,0 +1,54 @@
+/* ==========================================================================
+   Vue bridges
+   --------------------------------------------------------------------------
+   assets/css/app.css is the shared design system and stays untouched. This
+   file only carries the handful of rules the component port needs.
+   ========================================================================== */
+
+/* Vue mounts into #app inside <body class="app">, which is the flex container.
+   `contents` keeps .sidebar / .scrim / .main direct flex items of the body. */
+#app { display: contents; }
+
+/* AppIcon renders <span class="ico" v-html="svg">. `display: contents` keeps
+   the svg a direct participant in its parent's layout, so every existing
+   `.x svg` sizing and flex rule in app.css applies unchanged. */
+.ico { display: contents; }
+
+/* In-flow dropdown menus (app.css positions .menu fixed from JS). */
+.menu-host { position: relative; }
+.menu-host > .menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  left: auto;
+}
+.menu-host--up > .menu { top: auto; bottom: calc(100% + 8px); }
+
+/* Sortable table headers as real buttons (keyboard accessible). */
+.th-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.th-btn:hover { color: var(--fg); }
+.data th[aria-sort] .th-btn { color: var(--violet-text); }
+.data th.num .th-btn { justify-content: flex-end; width: 100%; }
+
+/* Toast transitions. */
+.toast-enter-from,
+.toast-leave-to { opacity: 0; transform: translateX(14px); }
+.toast-enter-active,
+.toast-leave-active { transition: opacity 0.22s var(--ease), transform 0.22s var(--ease); }
+.toast-move { transition: transform 0.22s var(--ease); }
+.toast-leave-active { position: absolute; right: 0; left: 0; }
+
+/* Palette transition (app.css drives visibility with .is-on). */
+.palette .palette__box { transition: transform 0.18s var(--ease); }

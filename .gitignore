@@ -1,0 +1,25 @@
+# dependencies
+node_modules/
+.npmrc
+
+# build output — Coolify builds from source
+dist-vue/
+
+# the earlier static implementation and the delivery log: data.js states it is
+# taken from the reference bundle, and the log opens with the clone notes. Both
+# are working material, not the product.
+assets/js/
+NOTES.md
+
+# recon and working files: the reference bundle, harnesses, captures, raw
+# screenshots, host-managed versions and logs. None of it is the product.
+RECON/
+Screenshot-*.png
+image.png
+*.artifact.json
+vite-dev.log
+.file-versions/
+.od-skills/
+
+# macOS
+.DS_Store
