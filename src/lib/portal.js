@@ -2,6 +2,7 @@ import { computed, reactive } from 'vue'
 import {
   becomeAffiliate, clearToken, fetchAccounts, fetchAffiliate, fetchCertificates,
   fetchKyc, fetchLeaderboard, fetchMe, fetchPayouts, fetchTournaments, login as apiLogin,
+  joinTournament as apiJoinTournament,
   onUnauthorized, requestPayout as apiRequestPayout, uploadKyc as apiUploadKyc,
 } from './api.js'
 import { setLiveAccount } from '../data/portal.js'
@@ -207,6 +208,9 @@ async function loadTournaments() {
   const list = await fetchTournaments()
   TOURNAMENTS.splice(0, TOURNAMENTS.length, ...list)
 }
+
+/** POST /tournaments/[id]/join — the thin store wrapper. */
+export function joinTournament(id) { return apiJoinTournament(id) }
 
 async function loadKyc() {
   const data = await fetchKyc()
