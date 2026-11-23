@@ -350,6 +350,14 @@ export function mapTournament(t) {
 const PLATFORM_LABELS = { mt5: 'MetaTrader 5', tradelocker: 'TradeLocker', mock: 'Mock' }
 export const platformName = (p) => PLATFORM_LABELS[p] || p || '—'
 
+/* The payout rails the API accepts (mirrors PAYOUT_METHODS server-side). */
+export const PAYOUT_METHOD_OPTIONS = [
+  { id: 'paypal', label: 'PayPal', hint: 'The email your PayPal account is registered with' },
+  { id: 'usdt_trc20', label: 'USDT (TRC-20)', hint: 'Your TRC-20 wallet address' },
+  { id: 'usdt_erc20', label: 'USDT (ERC-20)', hint: 'Your ERC-20 wallet address' },
+  { id: 'bank_wire', label: 'Bank transfer', hint: 'IBAN / account number and the beneficiary name' },
+]
+
 /* ==========================================================================
    Endpoints
    ========================================================================== */
