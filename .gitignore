@@ -23,3 +23,6 @@ vite-dev.log
 
 # macOS
 .DS_Store
+
+# local dev values only — see .env.example
+.env
