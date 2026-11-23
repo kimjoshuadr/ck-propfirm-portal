@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
+import { login } from '../lib/api.js'
 import { brand } from '../lib/assets.js'
 import { pushToast } from '../lib/ui.js'
 
@@ -8,27 +9,39 @@ import { pushToast } from '../lib/ui.js'
  * Sign-in screen — the one page that renders without the portal shell.
  *
  * It is a route like any other (`#login`), so signing out is an in-app jump
- * rather than a second HTML document. Submitting lands on the dashboard: the
- * prototype has no session, and it says so in the callout.
+ * rather than a second HTML document. Submitting posts the CRM's
+ * /portal/token endpoint (the cross-domain bearer login) and lands on the
+ * dashboard with the JWT in sessionStorage; server errors show inline.
  */
-const email = ref('kim@ckpropfirm.com')
-const password = ref('ckpropfirm')
+const email = ref('')
+const password = ref('')
 const remember = ref(true)
 const reveal = ref(false)
 const touched = ref(false)
+const submitting = ref(false)
+const serverError = ref('')
 
 const emailError = computed(() => touched.value && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.value.trim()))
-const passwordError = computed(() => touched.value && password.value.length < 8)
+const passwordError = computed(() => touched.value && password.value.length < 1)
 
-function submit() {
+async function submit() {
   touched.value = true
+  serverError.value = ''
   if (emailError.value || passwordError.value) return
-  pushToast({
-    tone: 'good',
-    title: 'Signed in',
-    msg: 'No session is created in this prototype — the dashboard is a demo.',
-  })
-  location.hash = '#overview'
+  submitting.value = true
+  try {
+    const { user } = await login(email.value.trim(), password.value)
+    pushToast({
+      tone: 'good',
+      title: 'Signed in',
+      msg: `Welcome back${user?.displayName ? `, ${user.displayName}` : ''}.`,
+    })
+    location.hash = '#overview'
+  } catch (err) {
+    serverError.value = err?.message || 'Sign-in failed. Please try again.'
+  } finally {
+    submitting.value = false
+  }
 }
 
 function planned(title, msg) {
@@ -99,16 +112,20 @@ function planned(title, msg) {
               @click="reveal = !reveal"
             >{{ reveal ? 'Hide' : 'Show' }}</button>
           </div>
-          <span class="field__error">Password must be at least 8 characters.</span>
+          <span class="field__error">Enter your password.</span>
         </div>
+
+        <p v-if="serverError" class="field__error auth__server-error" role="alert" data-od-id="login-error">
+          {{ serverError }}
+        </p>
 
         <div class="auth__row">
           <label class="check"><input v-model="remember" type="checkbox" />Remember me</label>
           <a class="auth__link" href="#" @click.prevent="planned('Reset password', 'A reset link would be emailed in the live portal.')">Forgot password?</a>
         </div>
 
-        <button class="btn btn--primary btn--lg btn--block" type="submit" data-od-id="login-submit">
-          Login to your account
+        <button class="btn btn--primary btn--lg btn--block" type="submit" :disabled="submitting" data-od-id="login-submit">
+          {{ submitting ? 'Signing in…' : 'Login to your account' }}
         </button>
 
         <p class="auth__foot">

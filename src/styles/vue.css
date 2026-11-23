@@ -52,3 +52,7 @@
 
 /* Palette transition (app.css drives visibility with .is-on). */
 .palette .palette__box { transition: transform 0.18s var(--ease); }
+
+/* Login inline server error — always visible once set (unlike a field's own
+   hint, which only shows while its field is invalid). */
+.auth__server-error { display: block; margin: 2px 0 0; }
