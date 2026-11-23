@@ -1,13 +1,15 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
+import ModalDialog from '../components/ModalDialog.vue'
 import OverviewTab from '../components/account/OverviewTab.vue'
 import RulesTab from '../components/account/RulesTab.vue'
 import CalendarPanel from '../components/account/CalendarPanel.vue'
 import TradesTab from '../components/account/TradesTab.vue'
 import AnalyticsTab from '../components/account/AnalyticsTab.vue'
 import { accountByNumber } from '../data/portal.js'
-import { account, isFavorite, openChallenge, setActiveAccount, toggleFavorite } from '../lib/portal.js'
+import { account, accountDetails, copyText, isFavorite, loadAccountDetail, openChallenge, reloadAccountDetail, setActiveAccount, toggleFavorite } from '../lib/portal.js'
+import { fetchCredentials } from '../lib/api.js'
 import { pushToast } from '../lib/ui.js'
 import { ACCOUNT_TABS, route } from '../lib/router.js'
 import { longDateISO, money } from '../lib/format.js'
@@ -187,6 +189,8 @@ watch(() => route.tab, (next) => {
   nextTick(() => go(next))
 })
 
+/* ------------------------------------------------------------- live data */
+
 const isActive = computed(() => detail.value && detail.value.id === account.activeId)
 const kind = computed(() => (detail.value?.status === 'funded' ? 'Funded' : 'Evaluation'))
 const phase = computed(() => detail.value?.phase.split(' · ')[0] || '')
@@ -195,16 +199,49 @@ function makeActive() {
   setActiveAccount(detail.value.id)
 }
 
-function credentials() {
-  pushToast({
-    tone: 'info',
-    title: 'Platform credentials',
-    msg: `${detail.value.platform} login for account ${detail.value.number} is issued at purchase.`,
+/* The API detail (trades, rules snapshot, violations, validation status)
+   loads per account id; the trades also feed the tabs below through the
+   store's registry, so every section reads the same server data. */
+const apiDetail = computed(() => (detail.value ? accountDetails.byId[detail.value.id] || null : null))
+
+watch(() => detail.value?.id, (id) => {
+  if (!id) return
+  loadAccountDetail(id).catch((err) => {
+    pushToast({ tone: 'bad', title: 'Could not load the account', msg: err?.message || 'Please try again.' })
   })
+}, { immediate: true })
+
+/* ---------------------------------------------------------- credentials */
+
+const credsOpen = ref(false)
+const credsLoading = ref(false)
+const credsError = ref('')
+const creds = ref(null)
+const credsShown = ref(false)
+
+async function credentials() {
+  if (!detail.value) return
+  credsOpen.value = true
+  credsLoading.value = true
+  credsError.value = ''
+  creds.value = null
+  credsShown.value = false
+  try {
+    creds.value = await fetchCredentials(detail.value.id)
+  } catch (err) {
+    /* Rate limit (429), nothing-stored (404) and auth errors all surface
+       with the server's own message. */
+    credsError.value = err?.message || 'Could not reveal the credentials. Please try again.'
+  } finally {
+    credsLoading.value = false
+  }
 }
 
 function refresh() {
-  pushToast({ tone: 'info', title: 'Refreshing account', msg: 'This prototype reads local demo data, so it is already current.' })
+  if (!detail.value) return
+  pushToast({ tone: 'info', title: 'Refreshing account', msg: 'Re-reading trades, equity and status from the CRM.' })
+  reloadAccountDetail(detail.value.id)
+    .catch((err) => pushToast({ tone: 'bad', title: 'Refresh failed', msg: err?.message || 'Please try again.' }))
 }
 </script>
 
@@ -231,6 +268,11 @@ function refresh() {
 
           <h1 class="acc-title">Account #{{ detail.number }}</h1>
           <span class="acc-status" :class="`acc-status--${detail.status}`">{{ detail.status }}</span>
+          <span
+            v-if="apiDetail && apiDetail.validationStatus && apiDetail.validationStatus !== detail.status"
+            class="acc-status"
+            :title="'The platform’s live validation state for this account'"
+          >{{ apiDetail.validationStatus }}</span>
 
           <div class="acc-head__actions">
             <button type="button" class="btn btn--ghost btn--sm" @click="credentials">
@@ -291,6 +333,51 @@ function refresh() {
           <span class="acc-section__note">{{ SECTIONS[1].note }}</span>
         </div>
         <RulesTab :account="detail" />
+
+        <!-- The CRM's frozen rules snapshot + the risk engine's violations.
+             Both arrive with the account detail; absent, the section stays
+             empty rather than guessing. -->
+        <template v-if="apiDetail && (apiDetail.rulesSummary.length || apiDetail.violations.length)">
+          <div class="acc-section__head" style="margin-top:26px">
+            <h3 class="acc-section__title" style="font-size:15px">Rules snapshot</h3>
+            <span class="acc-section__note">Frozen when the account was provisioned; staff overrides merged in</span>
+          </div>
+          <section class="panel" style="margin-top:10px">
+            <div class="panel__body">
+              <ul v-if="apiDetail.rulesSummary.length" class="stg-rules" style="margin:0 0 6px">
+                <li v-for="line in apiDetail.rulesSummary" :key="line" class="is-ok">
+                  <AppIcon name="check" :size="15" />{{ line }}
+                </li>
+              </ul>
+              <span v-else class="dim" style="font-size:13px">No rules snapshot has been recorded for this account yet.</span>
+
+              <template v-if="apiDetail.violations.length">
+                <div class="panel__head" style="margin-top:16px">
+                  <span class="panel__title">Rule violations</span>
+                  <span class="panel__actions">
+                    <span class="badge badge--rejected"><span class="badge__dot" />{{ apiDetail.violations.length }}</span>
+                  </span>
+                </div>
+                <div class="table-wrap">
+                  <table class="data" style="min-width:560px">
+                    <thead>
+                      <tr><th>Rule</th><th>Action</th><th>Ticket</th><th>Detail</th><th>When</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(v, i) in apiDetail.violations" :key="`${v.rule}-${v.at}-${i}`">
+                        <td class="cell-strong">{{ v.rule }}</td>
+                        <td>{{ v.action }}</td>
+                        <td class="mono-id">{{ v.ticket || '—' }}</td>
+                        <td class="dim">{{ v.detail }}</td>
+                        <td class="dim">{{ longDateISO(String(v.at).slice(0, 10)) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </template>
+            </div>
+          </section>
+        </template>
       </section>
 
       <section id="acc-trades" class="acc-section" data-od-id="account-section-trades">
@@ -325,5 +412,51 @@ function refresh() {
         <a href="#accounts" style="color:var(--violet-text)">All accounts</a>.
       </p>
     </section>
+
+    <!-- Platform credentials: decrypted server-side on demand (rate-limited:
+         10 reveals an hour — the server's message shows in the modal). -->
+    <ModalDialog
+      v-if="credsOpen"
+      title="Platform credentials"
+      :subtitle="detail ? `${detail.platform} · account ${detail.number}` : ''"
+      @close="credsOpen = false"
+    >
+      <p v-if="credsLoading" class="dim" style="padding:8px 0">Decrypting…</p>
+
+      <template v-else-if="creds">
+        <div class="kv">
+          <div class="kv__row"><span class="kv__k">Platform</span><span class="kv__v">{{ creds.platform }}</span></div>
+          <div class="kv__row"><span class="kv__k">Login</span><span class="kv__v mono">{{ creds.login || '—' }}</span></div>
+          <div class="kv__row"><span class="kv__k">Server</span><span class="kv__v mono">{{ creds.server || '—' }}</span></div>
+          <div class="kv__row">
+            <span class="kv__k">Password</span>
+            <span class="kv__v mono" style="display:flex;gap:8px;align-items:center">
+              {{ credsShown ? (creds.password || '—') : '••••••••••' }}
+              <button
+                type="button"
+                class="btn btn--ghost btn--sm"
+                :aria-label="credsShown ? 'Hide password' : 'Show password'"
+                @click="credsShown = !credsShown"
+              >{{ credsShown ? 'Hide' : 'Show' }}</button>
+            </span>
+          </div>
+        </div>
+        <div class="callout">
+          <AppIcon name="shield" :size="17" />
+          <div>Every reveal is rate-limited and written to the audit log. Never share these on socials or in the room.</div>
+        </div>
+      </template>
+
+      <p v-else class="stat-card__foot" role="alert">{{ credsError }}</p>
+
+      <template #actions>
+        <button class="btn btn--ghost" @click="credsOpen = false">Close</button>
+        <button
+          v-if="creds?.password"
+          class="btn btn--secondary"
+          @click="copyText(creds.password, 'Password copied')"
+        >Copy password</button>
+      </template>
+    </ModalDialog>
   </div>
 </template>

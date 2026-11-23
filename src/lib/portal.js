@@ -624,6 +624,20 @@ export async function loadAccountDetail(id) {
   return detail
 }
 
+/** Drop the cached detail and read it again (the account page's Refresh). */
+export async function reloadAccountDetail(id) {
+  if (!id) return
+  const previous = accountDetails.byId[id]
+  delete accountDetails.byId[id]
+  try {
+    return await loadAccountDetail(id)
+  } catch (err) {
+    /* Keep the old copy visible rather than blanking the page. */
+    if (previous) accountDetails.byId[id] = previous
+    throw err
+  }
+}
+
 /* --------------------------------------------------------- payout request */
 
 export async function submitPayoutRequest({ tradingAccountId, method, destination }) {

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import AppIcon from '../AppIcon.vue'
 import { calendarFor, tradesFor } from '../../data/portal.js'
 import { signedMoney } from '../../lib/format.js'
@@ -26,11 +26,18 @@ const round2 = (n) => Math.round(n * 100) / 100
  * lists every session newest-first, which is what the section has claimed to do
  * all along, and opens one inline instead of in a dialog.
  */
-const log = tradesFor(props.account.number)
-const newest = log[0]?.date || ''
-const oldest = log.at(-1)?.date || ''
-const start = newest || new Date().toISOString().slice(0, 10)
+const logRef = computed(() => tradesFor(props.account.number))
+/* The log is the account's live trades, so it arrives async: everything derived
+   from it is a computed, and the viewed month follows the newest session once
+   the data lands. */
+const log = computed(() => tradesFor(props.account.number))
+const newest = computed(() => log.value[0]?.date || '')
+const oldest = computed(() => log.value.at(-1)?.date || '')
+const start = newest.value || new Date().toISOString().slice(0, 10)
 const view = ref({ year: Number(start.slice(0, 4)), month: Number(start.slice(5, 7)) })
+watch(newest, (n) => {
+  if (n) view.value = { year: Number(n.slice(0, 4)), month: Number(n.slice(5, 7)) }
+})
 const open = ref(null)
 
 const key = (year, month) => year * 12 + month
