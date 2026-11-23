@@ -1,7 +1,8 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import AppIcon from '../AppIcon.vue'
-import { ACCOUNTS, maxLossToday } from '../../data/portal.js'
+import { maxLossToday } from '../../data/portal.js'
+import { ACCOUNTS } from '../../lib/portal.js'
 import { account, copyText, favoriteState, isFavorite, toggleFavorite } from '../../lib/portal.js'
 import { accountHref } from '../../lib/router.js'
 import { money, signedMoney, signedPct } from '../../lib/format.js'

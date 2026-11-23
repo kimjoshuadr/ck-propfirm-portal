@@ -6,7 +6,7 @@ import { TIERS } from '../data/affiliates.js'
   <section class="card card--flush">
     <div class="card__head">
       <div>
-        <h3>Commission tiers</h3>
+        <h3>Commission tiers <span class="demo-badge">Demo data</span></h3>
         <div class="dim" style="font-size:12.5px;margin-top:3px">
           Tier is set by how many referred accounts are funded, and is reviewed every cycle.
         </div>

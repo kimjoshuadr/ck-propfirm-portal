@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
-import { ACCOUNTS, PAYOUTS, paidPayoutTotal } from '../data/portal.js'
+import { ACCOUNTS, PAYOUTS, paidPayoutTotal } from '../lib/portal.js'
 import { money } from '../lib/format.js'
 import { pushToast } from '../lib/ui.js'
 import { route } from '../lib/router.js'

@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import AppIcon from '../AppIcon.vue'
 import { brand } from '../../lib/assets.js'
-import { CERTIFICATES } from '../../data/portal.js'
+import { CERTIFICATES } from '../../lib/portal.js'
 import { copyText } from '../../lib/portal.js'
 import { accountHref } from '../../lib/router.js'
 import { pushToast } from '../../lib/ui.js'

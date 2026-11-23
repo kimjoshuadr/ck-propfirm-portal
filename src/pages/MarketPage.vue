@@ -324,7 +324,7 @@ function refreshFeed() {
       <section class="nr-desk">
         <div class="nr-sub">
           <h2>From the CK desk</h2>
-          <span class="stat-card__foot">Our own notes, written for clients — not aggregated</span>
+          <span class="stat-card__foot">Our own notes, written for clients — not aggregated · <span class="demo-badge">Demo data</span></span>
         </div>
         <div class="acc-grid-2">
           <article v-for="n in NEWS" :key="n.title" class="panel news-card news-card--desk" :data-od-id="`news-${n.tag.toLowerCase()}`">

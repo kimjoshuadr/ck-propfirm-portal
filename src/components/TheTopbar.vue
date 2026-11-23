@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppIcon from './AppIcon.vue'
-import { USER } from '../data/portal.js'
+import { USER, logout } from '../lib/portal.js'
 import { longDate } from '../lib/format.js'
 import { accountHref } from '../lib/router.js'
 import {
@@ -197,7 +197,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
           </button>
           <div class="menu__sep"></div>
           <div class="menu__foot">
-            <button class="btn btn--ghost menu__logout" @click="go('#login')">
+            <button class="btn btn--ghost menu__logout" @click="logout()">
               <AppIcon name="logout" :size="16" />Logout
             </button>
           </div>

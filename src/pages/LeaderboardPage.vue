@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
-import { ACCOUNTS, LEADERBOARD } from '../data/portal.js'
+import { ACCOUNTS, LEADERBOARD } from '../lib/portal.js'
 import { money, signedPct } from '../lib/format.js'
 import { pushToast } from '../lib/ui.js'
 

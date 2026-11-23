@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
-import { USER } from '../data/portal.js'
+import { USER } from '../lib/portal.js'
 import { pushToast } from '../lib/ui.js'
 import { SETTINGS_TABS, route } from '../lib/router.js'
 

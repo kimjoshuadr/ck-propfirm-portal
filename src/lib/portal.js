@@ -1,13 +1,19 @@
 import { computed, reactive } from 'vue'
-import { ACCOUNTS, NOTIFICATIONS, pendingPayoutCount } from '../data/portal.js'
+import {
+  becomeAffiliate, clearToken, fetchAccounts, fetchAffiliate, fetchCertificates,
+  fetchKyc, fetchLeaderboard, fetchMe, fetchPayouts, fetchTournaments, login as apiLogin,
+  onUnauthorized, requestPayout as apiRequestPayout, uploadKyc as apiUploadKyc,
+} from './api.js'
+import { setLiveAccount } from '../data/portal.js'
 import { route } from './router.js'
 import { pushToast } from './ui.js'
 
-/* The store is the public surface for the shell, so account data is
-   re-exported alongside the state that manages it. */
-export { ACCOUNTS }
+/* The store is the public surface for the shell, so live data is exported
+   straight from here: components read these reactive collections instead of
+   the old demo arrays in src/data/portal.js (which now holds only decorative
+   content and the display helpers over live trades). */
 
-/* --------------------------------------------------------------- storage */
+/* =========================================================== UI storage */
 
 export const LS = {
   get(key, fallback) {
@@ -16,6 +22,265 @@ export const LS = {
   set(key, value) {
     try { localStorage.setItem(key, value) } catch { /* ignore */ }
   },
+}
+
+/* ================================================================ auth */
+
+/* 'init' → restoring the sessionStorage token; then 'anon' or 'authed'. */
+export const auth = reactive({ status: 'init' })
+
+/* The profile header — the CRM's /me, mapped in api.js. */
+export const USER = reactive({
+  name: '', handle: '', email: '', initials: '', plan: 'CK Fam',
+  joined: '', country: '', kyc: 'none', affiliateCode: null,
+})
+
+/**
+ * ?ref=CODE lands the trader on the portal with a referral code; it is
+ * captured once into sessionStorage and attached to the first checkout.
+ */
+export function captureReferral() {
+  if (typeof window === 'undefined') return
+  try {
+    const ref = new URLSearchParams(window.location.search).get('ref')
+    if (ref) sessionStorage.setItem('ck.ref', ref.trim().toUpperCase())
+  } catch { /* ignore */ }
+}
+
+export const referralCode = () => {
+  try { return sessionStorage.getItem('ck.ref') || null } catch { return null }
+}
+
+/* The CRM's loaders — each safe to call more than once; every failure is
+   swallowed here (the UI already degrades to its empty/branch states) so one
+   slow endpoint never blanks the shell. */
+
+export const ACCOUNTS = reactive([])
+export const PAYOUTS = reactive([])
+export const CERTIFICATES = reactive([])
+export const LEADERBOARD = reactive([])
+export const TOURNAMENTS = reactive([])
+
+/* Affiliate summary + the KYC state (specific shapes, not plain lists). */
+export const affiliate = reactive({
+  loaded: false,
+  enrolled: false,
+  summary: null,
+  commissions: [],
+})
+
+export const kyc = reactive({
+  loaded: false,
+  status: 'none',
+  rejectionReason: null,
+  submittedAt: null,
+  documents: [],
+})
+
+export const session = reactive({
+  loaded: false,
+  error: '',
+})
+
+export const paidPayoutTotal = () =>
+  PAYOUTS.filter((p) => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0)
+
+export const pendingPayoutCount = () =>
+  PAYOUTS.filter((p) => p.status === 'pending' || p.status === 'processing').length
+
+/* ------------------------------------------------- notifications, derived */
+
+/* The API has no notifications endpoint, so the drawer's rows derive from the
+   live accounts (and their payouts) — the same alerts the desk would raise,
+   minus anything invented. */
+
+function deriveNotifications() {
+  const rows = []
+  for (const a of ACCOUNTS) {
+    const who = a.number
+    if (a.status === 'breached') {
+      rows.push({
+        id: `breach-${a.id}`,
+        account: who,
+        category: 'risk',
+        icon: 'alert',
+        tone: 'warn',
+        title: 'Account Breached',
+        msg: `Account ${who} · ${a.label} hit its ${a.drawdownType.toLowerCase()} drawdown limit — equity at $${(a.equity ?? 0).toLocaleString('en-US')}.`,
+        time: '',
+      })
+    } else if (a.status === 'funded') {
+      rows.push({
+        id: `funded-${a.id}`,
+        account: who,
+        category: 'payout',
+        icon: 'check',
+        tone: 'good',
+        title: 'Funded',
+        msg: `Account ${who} · ${a.label} is on a payout cycle. Requests open under Manage → Withdrawals.`,
+        time: '',
+      })
+    } else if (a.status === 'active' || a.status === 'passed') {
+      rows.push({
+        id: `ready-${a.id}`,
+        account: who,
+        category: 'info',
+        icon: 'check',
+        tone: 'good',
+        title: 'Account Ready',
+        msg: `Account ${who} · ${a.label} is live. Time to trade.`,
+        time: '',
+      })
+    }
+  }
+  for (const p of PAYOUTS) {
+    if (p.status === 'pending' || p.status === 'processing') {
+      rows.push({
+        id: `payout-${p.id}`,
+        account: p.account,
+        category: 'payout',
+        icon: 'info',
+        tone: 'info',
+        title: 'Payout in review',
+        msg: `Payout ${p.shortId} · $${(p.amount ?? 0).toLocaleString('en-US')} via ${p.method} is ${p.status}.`,
+        time: '',
+      })
+    }
+  }
+  return rows
+}
+
+export const NOTIFICATIONS = computed(deriveNotifications)
+
+/* ----------------------------------------------------------- load + auth */
+
+function adoptProfile(profile) {
+  Object.assign(USER, profile)
+}
+
+async function loadAccounts() {
+  const list = await fetchAccounts()
+  ACCOUNTS.splice(0, ACCOUNTS.length, ...list)
+  for (const a of list) setLiveAccount(a.number, { account: a })
+  /* Keep the persisted active account if it still exists, else the first. */
+  if (!ACCOUNTS.some((a) => a.id === account.activeId)) {
+    account.activeId = ACCOUNTS[0]?.id ?? ''
+    if (ACCOUNTS[0]) LS.set('ck.activeAccount', ACCOUNTS[0].id)
+  }
+}
+
+async function loadPayouts() {
+  const list = await fetchPayouts()
+  /* The history prints the account's number, not its uuid. */
+  const byId = new Map(ACCOUNTS.map((a) => [a.id, a]))
+  for (const p of list) {
+    p.account = byId.get(p.accountId)?.number || p.accountId || '—'
+    p.shortId = String(p.id).slice(0, 8).toUpperCase()
+  }
+  PAYOUTS.splice(0, PAYOUTS.length, ...list)
+}
+
+async function loadCertificates() {
+  const list = await fetchCertificates()
+  const byId = new Map(ACCOUNTS.map((a) => [a.id, a]))
+  for (const c of list) {
+    const hit = byId.get(c.accountId)
+    if (hit) c.account = hit.label
+  }
+  CERTIFICATES.splice(0, CERTIFICATES.length, ...list)
+}
+
+async function loadLeaderboard() {
+  const list = await fetchLeaderboard()
+  LEADERBOARD.splice(0, LEADERBOARD.length, ...list)
+}
+
+async function loadAffiliate() {
+  const data = await fetchAffiliate()
+  affiliate.loaded = true
+  affiliate.enrolled = data.enrolled
+  affiliate.summary = data.summary
+  affiliate.commissions = data.commissions
+}
+
+async function loadTournaments() {
+  const list = await fetchTournaments()
+  TOURNAMENTS.splice(0, TOURNAMENTS.length, ...list)
+}
+
+async function loadKyc() {
+  const data = await fetchKyc()
+  kyc.loaded = true
+  kyc.status = data.status
+  kyc.rejectionReason = data.rejectionReason
+  kyc.submittedAt = data.submittedAt
+  kyc.documents = data.documents || []
+}
+
+function loadEverything() {
+  /* Fire the independent loads together; each handles its own failure. */
+  loadAccounts()
+    .then(() => Promise.allSettled([loadPayouts(), loadCertificates()]))
+    .catch(() => {})
+  loadLeaderboard().catch(() => {})
+  loadAffiliate().catch(() => {})
+  loadTournaments().catch(() => {})
+  loadKyc().catch(() => {})
+}
+
+/* Route the app to the login screen the way a 401 does — one code path for
+   both an expired session and a fresh visitor. */
+export function goToLogin() {
+  auth.status = 'anon'
+  if (typeof location !== 'undefined' && location.hash !== '#login') location.hash = '#login'
+}
+
+onUnauthorized(() => {
+  session.loaded = false
+  goToLogin()
+})
+
+/** Boot: restore the session from sessionStorage, then load the shell data. */
+export async function bootSession() {
+  captureReferral()
+  if (!hasToken()) {
+    auth.status = 'anon'
+    return
+  }
+  try {
+    adoptProfile(await fetchMe())
+    auth.status = 'authed'
+    session.loaded = true
+    loadEverything()
+  } catch (err) {
+    /* A dead API with a stale token also lands here (network error ≠ 401, so
+       clear the token ourselves; a real 401 already cleared it). */
+    clearToken()
+    auth.status = 'anon'
+  }
+}
+
+/** Login + immediate data adopt. Throws for the caller (LoginPage shows it). */
+export async function login(email, password) {
+  const data = await apiLogin(email, password)
+  try {
+    adoptProfile(await fetchMe())
+  } catch {
+    /* Token valid but the profile read failed — still let them in; the
+       screens degrade to their empty states and a reload retries. */
+  }
+  auth.status = 'authed'
+  session.loaded = true
+  loadEverything()
+  return data
+}
+
+/** Clear the token and drop on the sign-in screen. */
+export function logout() {
+  clearToken()
+  session.loaded = false
+  goToLogin()
+  pushToast({ tone: 'info', title: 'Signed out', msg: 'Your session has been cleared on this device.' })
 }
 
 /* --------------------------------------------------------- notifications */
@@ -39,7 +304,7 @@ export const isNotifRead = (n) => notifState.read.includes(notifKey(n))
 /* Dismissed alerts leave both the drawer and the Overview feed, so the bell
    count and the page always agree. */
 export const visibleNotifications = computed(() =>
-  NOTIFICATIONS.filter((n) => !notifState.dismissed.includes(notifKey(n))))
+  NOTIFICATIONS.value.filter((n) => !notifState.dismissed.includes(notifKey(n))))
 
 export const unreadCount = computed(() =>
   visibleNotifications.value.filter((n) => !isNotifRead(n)).length)
@@ -295,16 +560,17 @@ export function setRegion(code) {
 /* -------------------------------------------------------------- account */
 
 export const account = reactive({
-  activeId: LS.get('ck.activeAccount', ACCOUNTS[0].id),
+  activeId: LS.get('ck.activeAccount', '') || '',
 })
 
 export const activeAccount = computed(() =>
-  ACCOUNTS.find((a) => a.id === account.activeId) || ACCOUNTS[0])
+  ACCOUNTS.find((a) => a.id === account.activeId) || ACCOUNTS[0] || null)
 
 export function setActiveAccount(id) {
   account.activeId = id
   LS.set('ck.activeAccount', id)
-  pushToast({ tone: 'info', title: 'Active account switched', msg: `${id} is now streaming on the dashboard.` })
+  const hit = ACCOUNTS.find((a) => a.id === id)
+  pushToast({ tone: 'info', title: 'Active account switched', msg: `${hit?.number ?? id} is now streaming on the dashboard.` })
 }
 
 /* ------------------------------------------------------------ favourites */
@@ -338,5 +604,48 @@ export function toggleFavorite({ id, label }) {
 
 export function copyText(text, label = 'Copied') {
   try { navigator.clipboard?.writeText(text) } catch { /* ignore */ }
-  pushToast({ tone: 'good', title: label, msg: text })
+  pushToast({ tone: 'good', title: label, msg: String(text || '') })
+}
+
+/* ------------------------------------------------- account detail cache */
+
+/* One loaded detail per account id (uuid): trades, rules summary, violations,
+   equity series, validation status. Loaded on demand by the account page. */
+export const accountDetails = reactive({ byId: {} })
+
+export async function loadAccountDetail(id) {
+  if (!id) return
+  if (accountDetails.byId[id]) return accountDetails.byId[id]
+  const detail = await import('./api.js').then((m) => m.fetchAccount(id))
+  accountDetails.byId[id] = detail
+  /* Register the live trades so the display helpers (tradesFor,
+     analyticsFor, calendarFor) read them by account number. */
+  setLiveAccount(detail.account.number, { account: detail.account, trades: detail.trades })
+  return detail
+}
+
+/* --------------------------------------------------------- payout request */
+
+export async function submitPayoutRequest({ tradingAccountId, method, destination }) {
+  const result = await apiRequestPayout({ tradingAccountId, method, destination })
+  /* The ledger changed — re-read it (the request lands in the history). */
+  loadPayouts().catch(() => {})
+  return result
+}
+
+/* ----------------------------------------------------------- KYC upload */
+
+export async function submitKycDocument(file, docType) {
+  const result = await apiUploadKyc(file, docType)
+  if (result?.status) kyc.status = result.status
+  loadKyc().catch(() => {})
+  return result
+}
+
+/* ------------------------------------------------------------ affiliate */
+
+export async function enrollAffiliate() {
+  await becomeAffiliate()
+  await loadAffiliate()
+  return affiliate.summary
 }

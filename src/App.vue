@@ -19,7 +19,7 @@ import LearnPage from './pages/LearnPage.vue'
 import HelpPage from './pages/HelpPage.vue'
 import SettingsPage from './pages/SettingsPage.vue'
 import LoginPage from './pages/LoginPage.vue'
-import { PROMO, closeChallenge, closeDrawer, shell } from './lib/portal.js'
+import { auth, bootSession, PROMO, closeChallenge, closeDrawer, shell } from './lib/portal.js'
 import { isPage, route } from './lib/router.js'
 import { pushToast } from './lib/ui.js'
 
@@ -37,11 +37,17 @@ const money = (n) => `$${Math.round(n).toLocaleString('en-US')}`
 function onKeydown(event) {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault()
-    paletteOpen.value = !paletteOpen.value
+    if (auth.status === 'authed') {
+      event.preventDefault()
+      paletteOpen.value = !paletteOpen.value
+    }
   }
 }
 
-onMounted(() => document.addEventListener('keydown', onKeydown))
+onMounted(() => {
+  document.addEventListener('keydown', onKeydown)
+  bootSession()
+})
 onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
 
 /* An in-app jump swaps the page without a reload, so close the drawer and put
@@ -49,7 +55,13 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
 watch(() => route.page, () => {
   closeDrawer()
   closeChallenge()
-  window.scrollTo({ top: 0 })
+  if (auth.status === 'authed') window.scrollTo({ top: 0 })
+})
+
+/* A signed-in trader landing on #login (an old link, the back button) goes to
+   the dashboard; the login screen is for the signed-out state only. */
+watch(() => auth.status, (status) => {
+  if (status === 'authed' && isPage('login')) location.hash = '#overview'
 })
 
 function startEvaluation() {
@@ -63,7 +75,10 @@ function startEvaluation() {
 </script>
 
 <template>
-  <LoginPage v-if="isPage('login')" />
+  <!-- Restoring the sessionStorage token: a quiet navy beat, no shell flash. -->
+  <div v-if="auth.status === 'init'" class="boot" aria-busy="true" aria-label="Loading your session" />
+
+  <LoginPage v-else-if="auth.status !== 'authed'" />
 
   <template v-else>
   <TheSidebar />
