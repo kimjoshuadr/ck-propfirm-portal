@@ -4,6 +4,7 @@ import AppIcon from './AppIcon.vue'
 import ModalDialog from './ModalDialog.vue'
 import { fetchLegalPending, fetchPrograms, quoteCheckout, startCheckout } from '../lib/api.js'
 import { pushToast } from '../lib/ui.js'
+import { referralCode } from '../lib/portal.js'
 
 /*
  * "New challenge" — one dialog, the whole flow:
@@ -160,6 +161,8 @@ async function submit() {
       couponCode: coupon.value.trim().toUpperCase() || undefined,
       platform: platform.value || undefined,
       gateway: gateway.value,
+      /* The ?ref= code captured at boot rides along (lifetime first-wins). */
+      referralCode: referralCode() || undefined,
     })
     /* The gateway owns the next screen. */
     if (result?.redirectUrl) {
@@ -322,6 +325,10 @@ onBeforeUnmount(() => window.clearTimeout(quoteTimer))
           data-od-id="checkout-coupon"
         />
       </div>
+
+      <p v-if="referralCode()" class="stat-card__foot" style="margin-top:-8px">
+        Referred by <b class="mono">{{ referralCode() }}</b> — it will be attributed with this order.
+      </p>
 
       <div class="panel" style="box-shadow:none">
         <div class="panel__head">
