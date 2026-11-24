@@ -1,7 +1,7 @@
 import { computed, reactive } from 'vue'
 import {
   becomeAffiliate, clearToken, fetchAccounts, fetchAffiliate, fetchCertificates,
-  fetchKyc, fetchLeaderboard, fetchMe, fetchPayouts, fetchTournaments, login as apiLogin,
+  fetchKyc, fetchLeaderboard, fetchMe, fetchPayouts, fetchTournaments, hasToken, login as apiLogin,
   joinTournament as apiJoinTournament,
   onUnauthorized, requestPayout as apiRequestPayout, uploadKyc as apiUploadKyc,
 } from './api.js'

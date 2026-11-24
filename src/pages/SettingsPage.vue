@@ -18,7 +18,7 @@ import { SETTINGS_TABS, route } from '../lib/router.js'
  * this portal has never been given a date of birth or a street address, and
  * inventing one on a screen about identity would be the wrong kind of tidy.
  * Likewise the security rows: the enabled and verified states come from the
- * account (`USER.kyc`, the two-factor flag), not from the page.
+ * account (the live KYC state via the store's kyc loader), not from the page.
  */
 /* Kept in step with `SETTINGS_TABS` in the router, which validates the hash. */
 const SECTIONS = [
