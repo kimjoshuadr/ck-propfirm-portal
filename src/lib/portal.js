@@ -1,7 +1,7 @@
 import { computed, reactive } from 'vue'
 import {
   becomeAffiliate, clearToken, fetchAccounts, fetchAffiliate, fetchCertificates,
-  fetchKyc, fetchLeaderboard, fetchMe, fetchPayouts, fetchTournaments, hasToken, login as apiLogin,
+  fetchKyc, fetchLeaderboard, fetchMe, fetchOrders, fetchPayouts, fetchTournaments, hasToken, login as apiLogin,
   joinTournament as apiJoinTournament,
   onUnauthorized, requestPayout as apiRequestPayout, uploadKyc as apiUploadKyc,
 } from './api.js'
@@ -65,6 +65,7 @@ export const PAYOUTS = reactive([])
 export const CERTIFICATES = reactive([])
 export const LEADERBOARD = reactive([])
 export const TOURNAMENTS = reactive([])
+export const ORDERS = reactive([])
 
 /* Affiliate summary + the KYC state (specific shapes, not plain lists). */
 export const affiliate = reactive({
@@ -213,6 +214,11 @@ async function loadTournaments() {
   TOURNAMENTS.splice(0, TOURNAMENTS.length, ...list)
 }
 
+async function loadOrders() {
+  const list = await fetchOrders()
+  ORDERS.splice(0, ORDERS.length, ...list)
+}
+
 /** POST /tournaments/[id]/join — the thin store wrapper. */
 export function joinTournament(id) { return apiJoinTournament(id) }
 
@@ -233,6 +239,7 @@ function loadEverything() {
   loadLeaderboard().catch(() => {})
   loadAffiliate().catch(() => {})
   loadTournaments().catch(() => {})
+  loadOrders().catch(() => {})
   loadKyc().catch(() => {})
 }
 

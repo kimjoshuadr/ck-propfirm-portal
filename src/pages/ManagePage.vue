@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
 import ModalDialog from '../components/ModalDialog.vue'
-import { ACCOUNTS, PAYOUTS, submitPayoutRequest, paidPayoutTotal } from '../lib/portal.js'
+import { ACCOUNTS, ORDERS, PAYOUTS, paidPayoutTotal, submitPayoutRequest } from '../lib/portal.js'
 import { PAYOUT_METHOD_OPTIONS } from '../lib/api.js'
 import { money } from '../lib/format.js'
 import { pushToast } from '../lib/ui.js'
@@ -189,21 +189,23 @@ function editMethod(method) {
 
 /* ------------------------------------------------------------------- billing */
 
-/* Dates, orders and totals are the ones the lifecycle alerts already use. */
-const ORDERS = [
-  { id: '#378173', date: 'Aug 3, 2026', dateISO: '2026-08-24', item: 'CK 100K Challenge', total: 164.5, status: 'paid' },
-  { id: '#376120', date: 'Jul 30, 2026', dateISO: '2026-07-30', item: 'CK 50K Swing Challenge', total: 118, status: 'paid' },
-  { id: '#374903', date: 'Jun 2, 2026', dateISO: '2026-06-02', item: 'CK 100K Reset', total: 58, status: 'paid' },
-  { id: '#378001', date: 'Sep 19, 2026', dateISO: '2026-09-19', item: 'CK 200K Challenge', total: 359, status: 'pending' },
-  { id: '#371204', date: 'May 11, 2026', dateISO: '2026-05-11', item: 'CK 25K Challenge', total: 84, status: 'paid' },
-  { id: '#370088', date: 'May 2, 2026', dateISO: '2026-05-02', item: 'CK 25K Reset', total: 42, status: 'refunded' },
-]
+/* Live orders — the CRM's sales orders for this trader (GET /orders), loaded
+   through the store like the payouts above. `paymentStatus` is the honest
+   charge state; the workflow status alone says nothing about the money. */
+const ORDER_STATUS_BADGE = {
+  paid: 'badge--active',
+  unpaid: 'badge--pending',
+  pending: 'badge--pending',
+  partial: 'badge--violet',
+  refunded: 'badge--rejected',
+  cancelled: 'badge--rejected',
+}
 
 const BILLING_FILTERS = [
   { key: 'all', label: 'All statuses' },
   { key: 'paid', label: 'Paid' },
-  { key: 'pending', label: 'Pending' },
-  { key: 'refunded', label: 'Refunded' },
+  { key: 'unpaid', label: 'Unpaid' },
+  { key: 'partial', label: 'Partially paid' },
 ]
 
 const billingFilter = ref('all')
@@ -225,7 +227,7 @@ const rangeLabel = computed(() => {
 watch([billingFilter, perPage], () => { page.value = 1 })
 
 function invoice(order) {
-  pushToast({ tone: 'info', title: `Invoice ${order.id}`, msg: `${order.item} · ${money(order.total)}. This prototype bundles no PDF.` })
+  pushToast({ tone: 'info', title: `Invoice ${order.id}`, msg: `${order.date} · ${money(order.total)}` })
 }
 
 /* -------------------------------------------------------------------- shared */
@@ -447,7 +449,7 @@ function invoice(order) {
     <!-- Billing: the orders and their receipts, and nothing to do with cards. -->
     <section v-else class="panel" data-od-id="billing-history">
       <div class="panel__head">
-        <span class="panel__title">Billing history <span class="demo-badge">Demo data</span></span>
+        <span class="panel__title">Billing history</span>
         <span class="panel__actions">
           <label class="sr" for="billingStatus">Filter by status</label>
           <select id="billingStatus" v-model="billingFilter" class="select mng-filter" data-od-id="billing-status">
@@ -462,8 +464,7 @@ function invoice(order) {
             <tr>
               <th>Date</th>
               <th>Order</th>
-              <th>Product</th>
-              <th class="num">Amount</th>
+              <th>Amount</th>
               <th>Status</th>
               <th class="num">Receipt</th>
             </tr>
@@ -472,10 +473,9 @@ function invoice(order) {
             <tr v-for="o in billingPage" :key="o.id">
               <td class="dim">{{ o.date }}</td>
               <td class="mono-id">{{ o.id }}</td>
-              <td class="cell-strong">{{ o.item }}</td>
               <td class="num">{{ money(o.total) }}</td>
               <td>
-                <span class="badge" :class="o.status === 'paid' ? 'badge--active' : o.status === 'pending' ? 'badge--pending' : 'badge'">
+                <span class="badge" :class="ORDER_STATUS_BADGE[o.status] || 'badge--pending'">
                   <span class="badge__dot" />{{ o.status }}
                 </span>
               </td>
@@ -490,7 +490,8 @@ function invoice(order) {
       </div>
 
       <div v-if="!billingRows.length" class="empty">
-        <strong>Nothing with that status</strong>Choose another status to see the orders behind it.
+        <template v-if="billingFilter === 'all'"><strong>No orders yet</strong>Every order you place at checkout appears here with its receipt.</template>
+        <template v-else><strong>Nothing with that status</strong>Choose another status to see the orders behind it.</template>
       </div>
 
       <div class="mng-pager">

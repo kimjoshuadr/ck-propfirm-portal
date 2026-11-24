@@ -237,6 +237,23 @@ const PAYOUT_METHOD_LABELS = {
   bank_wire: 'Bank transfer',
 }
 
+/**
+ * GET /orders item → the billing-history row. The sales order carries no
+ * product labels on this endpoint, so the table reads date · order · payment
+ * state · amount; `paymentStatus` is the honest charge state (the workflow
+ * `status` alone says nothing about the money).
+ */
+export function mapOrder(o) {
+  return {
+    id: o.orderNumber || o.id,
+    placedAt: o.placedAt || '',
+    date: o.placedAt ? shortDay(o.placedAt) : '—',
+    currency: o.currencyCode || 'USD',
+    total: Number(o.grandTotalGrossAmount ?? 0) || 0,
+    status: o.paymentStatus || o.status || 'pending',
+  }
+}
+
 /** GET /certificates item → the demo CERTIFICATES row (+ the download URL). */
 export function mapCertificate(c) {
   return {
@@ -403,6 +420,10 @@ export const becomeAffiliate = () =>
 export const fetchCertificates = (page = 1, pageSize = 50) =>
   api(`${P}/certificates?page=${page}&pageSize=${pageSize}`)
     .then((d) => (d.items || []).map(mapCertificate))
+
+/** GET /orders — the signed-in trader's own sales orders (billing history). */
+export const fetchOrders = () =>
+  api(`${P}/orders`).then((d) => (d.orders || []).map(mapOrder))
 
 export const fetchLeaderboard = () =>
   api(`${P}/leaderboard`).then((d) => (d.items || []).map(mapLeaderboardRow))
