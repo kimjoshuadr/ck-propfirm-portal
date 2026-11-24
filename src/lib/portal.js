@@ -43,7 +43,11 @@ export const USER = reactive({
 export function captureReferral() {
   if (typeof window === 'undefined') return
   try {
-    const ref = new URLSearchParams(window.location.search).get('ref')
+    /* The code can ride as a real query (?ref=CODE#overview) or inside the
+       hash the app routes on (#overview?ref=CODE) — check both. */
+    const hash = window.location.hash || ''
+    const q = hash.includes('?') ? new URLSearchParams(hash.slice(hash.indexOf('?'))) : null
+    const ref = new URLSearchParams(window.location.search).get('ref') || q?.get('ref')
     if (ref) sessionStorage.setItem('ck.ref', ref.trim().toUpperCase())
   } catch { /* ignore */ }
 }
