@@ -1,8 +1,8 @@
 <script setup>
 import { computed, ref } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
-import { login } from '../lib/api.js'
 import { brand } from '../lib/assets.js'
+import { login } from '../lib/portal.js'
 import { pushToast } from '../lib/ui.js'
 
 /*
