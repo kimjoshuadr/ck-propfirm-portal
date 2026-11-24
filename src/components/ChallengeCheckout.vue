@@ -1,204 +1,180 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import AppIcon from './AppIcon.vue'
 import ModalDialog from './ModalDialog.vue'
-import PromoCard from './PromoCard.vue'
-import {
-  fetchPrograms, platformName, quoteCheckout, startCheckout,
-} from '../lib/api.js'
-import { referralCode } from '../lib/portal.js'
+import { fetchLegalPending, fetchPrograms, quoteCheckout, startCheckout } from '../lib/api.js'
+import { pushToast } from '../lib/ui.js'
 
 /*
- * The "New challenge" flow — the one dialog the sidebar CTA, the Overview hero
- * and the offer cards all open (shell.challenge, via openChallenge()).
+ * "New challenge" — one dialog, the whole flow:
  *
- * Steps: pick the challenge MODEL (tab) → program → size variant → platform →
- * add-ons (exclusive groups collapse each other) → coupon / referral → a LIVE
- * quote from the CRM (POST /checkout/quote, re-quoted on every cart change) →
- * gateway (Stripe / PayPal) → POST /checkout → the gateway's redirectUrl.
+ * 1. tabs across challenge models, one program each;
+ * 2. size variant (radio row);
+ * 3. platform (from the program's allowed platforms);
+ * 4. add-ons (exclusive groups collapse each other);
+ * 5. coupon code + a LIVE quote — POST /checkout/quote whenever the cart
+ *    moves; the total is always the server's;
+ * 6. gateway (Stripe / PayPal) → POST /checkout → the gateway's redirectUrl.
  *
- * Amounts are never computed here: the CRM re-prices the cart server-side and
- * the checkout re-computes the same quote again, so what the dialog shows is
- * the quote's own lines/total. A rejected coupon (422) shows its message under
- * the coupon field; a 428 legal_acceptance_required shows the accept-first
- * banner linking to the Agreements page; a gateway failure (502) tells the
- * trader to try the other rail.
+ * Server refusals surface inline: a 422 coupon rejection under the coupon
+ * field with its machine code translated, an addon_group_conflict in the cart,
+ * and a 428 legal_acceptance_required as the accept-first banner linking to
+ * Manage → Agreements (checked up front via GET legal/pending too).
  */
 const emit = defineEmits(['close'])
 
-/* ----------------------------------------------------------- catalogue */
+/* ------------------------------------------------------------ catalogue */
 
 const loading = ref(true)
 const loadError = ref('')
 const programs = ref([])
+const activeModel = ref('')
 
-const MODEL_LABELS = {
-  two_step: '2-Step',
-  one_step: '1-Step',
-  instant: 'Instant',
-}
-
+const MODEL_LABELS = { two_step: '2-Step', one_step: '1-Step', instant: 'Instant' }
 const modelTabs = computed(() => {
-  const seen = []
-  for (const p of programs.value) {
-    if (!seen.some((t) => t.key === p.model)) {
-      seen.push({ key: p.model, label: MODEL_LABELS[p.model] || p.model })
-    }
-  }
-  return seen
+  const seen = new Map()
+  for (const p of programs.value) seen.set(p.model, MODEL_LABELS[p.model] || p.model)
+  return [...seen].map(([key, label]) => ({ key, label }))
 })
 
-const activeModel = ref('')
-const modelPrograms = computed(() => programs.value.filter((p) => p.model === activeModel.value))
-const program = computed(() => modelPrograms.value.find((p) => p.id === programId.value) || modelPrograms.value[0] || null)
+const program = computed(() =>
+  programs.value.find((p) => p.model === activeModel.value) || programs.value[0] || null)
 
-const programId = ref('')
-
-/* ------------------------------------------------------------ the cart */
-
-const variantId = ref('')
 const variants = computed(() => program.value?.variants || [])
-const variant = computed(() => variants.value.find((v) => v.id === variantId.value) || null)
+const variantId = ref('')
+const variant = computed(() =>
+  variants.value.find((v) => v.id === variantId.value) || variants.value[0] || null)
 
+const platforms = computed(() => program.value?.platforms?.length ? program.value.platforms : ['mt5'])
 const platform = ref('')
-const platforms = computed(() => program.value?.platforms || [])
 
-const chosenAddonIds = ref([])
-const chosenAddons = computed(() =>
-  (program.value?.addons || []).filter((a) => chosenAddonIds.value.includes(a.id)))
+const addons = computed(() => program.value?.addons || [])
+const addonIds = ref([])
 
-const coupon = ref('')
-const gateway = ref('stripe')
-const GATEWAYS = [
-  { id: 'stripe', label: 'Stripe', note: 'Card, Apple Pay, Google Pay' },
-  { id: 'paypal', label: 'PayPal', note: 'PayPal balance or card' },
-]
+const sizeLabel = (v) => (v?.accountSize ? `${Math.round(v.accountSize / 1000).toLocaleString('en-US')}K` : '—')
+
+/* Exclusive groups collapse each other: the API would 422 the cart anyway
+ * (addon_group_conflict), so the modal never asks for an impossible one. */
+function toggleAddon(addon) {
+  const group = (addon.exclusiveGroup || '').trim()
+  if (!group) {
+    addonIds.value = addonIds.value.includes(addon.id)
+      ? addonIds.value.filter((id) => id !== addon.id)
+      : [...addonIds.value, addon.id]
+    return
+  }
+  const members = addons.value.filter((a) => (a.exclusiveGroup || '').trim() === group)
+  const wasOn = addonIds.value.includes(addon.id)
+  addonIds.value = addonIds.value.filter((id) => !members.some((m) => m.id === id))
+  if (!wasOn) addonIds.value = [...addonIds.value, addon.id]
+}
+
+const addonPriceLabel = (a) => {
+  if (a.priceType === 'percent') return `${Number(a.priceValue).toLocaleString('en-US', { maximumFractionDigits: 2 })}%`
+  return `$${Number(a.priceValue ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+}
 
 /* --------------------------------------------------------------- quote */
 
 const quote = ref(null)
-const quoting = ref(false)
+const quoteBusy = ref(false)
 const quoteError = ref('')
+
+let quoteTimer = 0
+function scheduleQuote() {
+  window.clearTimeout(quoteTimer)
+  quoteBusy.value = true
+  quoteTimer = window.setTimeout(refreshQuote, 300)
+}
+
+async function refreshQuote() {
+  if (!program.value || !variant.value) { quoteBusy.value = false; return }
+  quoteBusy.value = true
+  try {
+    quote.value = await quoteCheckout({
+      variantId: variant.value.id,
+      addonIds: [...addonIds.value],
+      couponCode: coupon.value.trim().toUpperCase() || undefined,
+      platform: platform.value || undefined,
+    })
+    /* The quote's own coupon verdict wins over any stale local guess. */
+    couponError.value = quote.value?.couponError
+      ? couponHint(quote.value.couponError)
+      : ''
+  } catch (err) {
+    quote.value = null
+    quoteError.value = err?.message || 'Could not price this cart.'
+  } finally {
+    quoteBusy.value = false
+  }
+}
+
+watch([variantId, platform, () => addonIds.value.slice().join(','), () => coupon.value.trim().toUpperCase()], () => {
+  scheduleQuote()
+})
+
+const money = (n) => `$${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+
+/* ------------------------------------------------------------- coupon */
+
+const coupon = ref('')
 const couponError = ref('')
+
+const COUPON_HINTS = {
+  inactive: 'This code is not active',
+  expired: 'This code has expired',
+  usage_limit: 'This code has reached its usage limit',
+  per_trader_limit: 'You have already used this code',
+  first_purchase_only: 'This code only applies to a first purchase',
+  not_applicable: 'This code does not apply to this size',
+}
+
+const couponHint = (code) => COUPON_HINTS[code] || `Coupon rejected (${code})`
+
+/* ------------------------------------------------------------ checkout */
+
+const GATEWAYS = [
+  { id: 'stripe', label: 'Stripe (card)' },
+  { id: 'paypal', label: 'PayPal' },
+]
+const gateway = ref('stripe')
 const checkoutBusy = ref(false)
 const checkoutError = ref('')
 const legalRequired = ref(false)
 
-let quoteTimer = 0
-
-function scheduleQuote() {
-  window.clearTimeout(quoteTimer)
-  quoting.value = true // keep the row honest between a change and the fetch
-  quoteTimer = window.setTimeout(refreshQuote, 350)
-}
-
-async function refreshQuote() {
-  if (!variant.value) { quote.value = null; quoting.value = false; return }
+async function checkLegal() {
   try {
-    quote.value = await quoteCheckout({
-      variantId: variant.value.id,
-      addonIds: [...chosenAddonIds.value],
-      couponCode: coupon.value.trim() || undefined,
-      platform: platform.value || undefined,
-    })
-    quoteError.value = ''
-    couponError.value = quote.value?.couponError
-      ? `Code "${coupon.value.trim().toUpperCase()}" was not applied — ${humanCouponError(quote.value.couponError)}`
-      : ''
-  } catch (err) {
-    if (err?.status === 422 && err?.code === 'addon_group_conflict') {
-      quoteError.value = err.message
-    } else {
-      quoteError.value = err?.message || 'Could not price this cart.'
-    }
-  } finally {
-    quoting.value = false
-  }
+    const pending = await fetchLegalPending()
+    legalRequired.value = pending.length > 0
+  } catch { /* the checkout re-checks server-side anyway */ }
 }
-
-const COUPON_HINTS = {
-  inactive: 'the code is not active',
-  not_started: 'the code is not live yet',
-  expired: 'the code has expired',
-  usage_limit: 'the code has been used up',
-  per_trader_limit: 'you have already used this code',
-  first_purchase_only: 'the code is only valid on a first purchase',
-  not_applicable: 'the code does not apply to this size',
-}
-
-const humanCouponError = (code) => COUPON_HINTS[code] || 'it was rejected'
-
-/* ------------------------------------------------------- cart mutations */
-
-function pickProgram(p) {
-  programId.value = p.id
-  const vs = p.variants || []
-  variantId.value = vs[0]?.id || ''
-  const ps = p.platforms?.length ? p.platforms : ['mt5']
-  platform.value = ps.includes(platform.value) ? platform.value : ps[0]
-  /* Drop add-ons the new program does not stock. */
-  const stocked = new Set((p.addons || []).map((a) => a.id))
-  chosenAddonIds.value = chosenAddonIds.value.filter((id) => stocked.has(id))
-}
-
-function toggleAddon(addon) {
-  const on = chosenAddonIds.value.includes(addon.id)
-  if (on) {
-    chosenAddonIds.value = chosenAddonIds.value.filter((id) => id !== addon.id)
-    return
-  }
-  /* Exclusive groups: a second payout cadence cannot ride along — picking one
-     quietly unpicks the other (the server would 422 the cart otherwise). */
-  let ids = chosenAddonIds.value
-  if (addon.exclusiveGroup) {
-    ids = ids.filter((id) => {
-      const other = (program.value?.addons || []).find((a) => a.id === id)
-      return other?.exclusiveGroup !== addon.exclusiveGroup
-    })
-  }
-  chosenAddonIds.value = [...ids, addon.id]
-  scheduleQuote()
-}
-
-const addonPriceLabel = (a) =>
-  a.priceType === 'percent'
-    ? `${Number(a.priceValue).toLocaleString('en-US', { maximumFractionDigits: 2 })}%`
-    : `$${Number(a.priceValue).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
-
-/* ------------------------------------------------------------- actions */
-
-function close() {
-  emit('close')
-}
-
-const firstRefusal = computed(() => !variant.value || checkoutBusy.value || quoting.value)
 
 async function submit() {
   if (!variant.value || checkoutBusy.value) return
   checkoutBusy.value = true
   checkoutError.value = ''
-  legalRequired.value = false
   try {
     const result = await startCheckout({
       variantId: variant.value.id,
-      addonIds: [...chosenAddonIds.value],
-      couponCode: coupon.value.trim() || undefined,
+      addonIds: [...addonIds.value],
+      couponCode: coupon.value.trim().toUpperCase() || undefined,
       platform: platform.value || undefined,
       gateway: gateway.value,
-      referralCode: referralCode() || undefined,
     })
     /* The gateway owns the next screen. */
     if (result?.redirectUrl) {
-      location.href = result.redirectUrl
+      window.location.href = result.redirectUrl
       return
     }
-    checkoutError.value = 'The gateway did not return a payment session. Please try again.'
+    pushToast({ tone: 'good', title: 'Order placed', msg: `Order ${result?.orderId ?? ''} — no gateway redirect came back; the account is reserved.` })
   } catch (err) {
     if (err?.status === 428) {
       legalRequired.value = true
-      checkoutError.value = err.message || 'Accept the updated legal documents before continuing.'
-    } else if (err?.status === 422 && err?.code === 'addon_group_conflict') {
-      checkoutError.value = err.message
+      checkoutError.value = 'New or updated legal terms need your acceptance before this purchase — open Manage → Agreements.'
+    } else if (err?.code === 'addon_group_conflict') {
+      checkoutError.value = 'Those add-ons are mutually exclusive — keep one per group.'
+    } else if (err?.status === 422 && err?.code) {
+      couponError.value = couponHint(err.code)
     } else {
       checkoutError.value = err?.message || 'Could not start the checkout. Please try again.'
     }
@@ -207,26 +183,17 @@ async function submit() {
   }
 }
 
-/* The size table opens on the best-value tier, like the table it replaces. */
-function openBestVariant() {
-  const best = [...variants.value].sort((a, b) => (a.accountSize - b.accountSize))
-    .find((v) => v.salePrice != null) || variants.value[0]
-  variantId.value = best?.id || ''
-}
-
-/* ----------------------------------------------------------- lifecycle */
+/* ------------------------------------------------------------ lifecycle */
 
 onMounted(async () => {
   try {
-    const list = await fetchPrograms()
-    programs.value = list
-    activeModel.value = modelTabs.value[0]?.key || ''
-    programId.value = list.find((p) => p.model === activeModel.value)?.id || ''
-    const ps = program.value?.platforms?.length ? program.value.platforms : ['mt5']
-    platform.value = ps[0]
-    openBestVariant()
-    await refreshQuote()
+    programs.value = await fetchPrograms()
+    activeModel.value = programs.value[0]?.model || ''
+    variantId.value = program.value?.variants?.[0]?.id || ''
+    platform.value = platforms.value[0] || 'mt5'
     loading.value = false
+    await refreshQuote()
+    checkLegal()
   } catch (err) {
     loadError.value = err?.message || 'Could not load the challenge catalogue.'
     loading.value = false
@@ -234,203 +201,181 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => window.clearTimeout(quoteTimer))
-
-/* Re-quote whenever the cart moves. */
-watch([variantId, platform], () => scheduleQuote())
-watch(chosenAddonIds, () => scheduleQuote())
-watch(coupon, () => { if (coupon.value.trim().length >= 4 || !coupon.value.trim()) scheduleQuote() })
 </script>
 
 <template>
   <ModalDialog
     title="Choose your next challenge"
-    subtitle="One-time fee · simulated evaluation. No hidden fees, no time limits, news trading allowed."
-    @close="close"
+    subtitle="One-time fee · simulated evaluation · up to 100% profit split"
+    @close="$emit('close')"
   >
-    <!-- catalogue levels -->
-    <template v-if="loading">
-      <p class="dim" style="padding:14px 0">Loading the challenge catalogue…</p>
-    </template>
+    <p v-if="loading" class="dim" style="padding:14px 0">Loading the challenge catalogue…</p>
 
-    <template v-else-if="loadError">
-      <div class="callout callout--warn">
-        <AppIcon name="alert" :size="17" />
-        <div>{{ loadError }}</div>
-      </div>
-    </template>
+    <div v-else-if="loadError" class="callout callout--warn">
+      <AppIcon name="alert" :size="17" />
+      <div>{{ loadError }}</div>
+    </div>
 
-    <template v-else>
-      <div class="stack" style="gap:14px">
-        <!-- 1 · model tabs -->
-        <div class="seg" role="tablist" aria-label="Challenge model">
-          <button
-            v-for="t in modelTabs"
-            :key="t.key"
-            type="button"
-            class="seg__btn"
-            :class="{ 'is-on': activeModel === t.key }"
-            role="tab"
-            :aria-selected="activeModel === t.key"
-            @click="activeModel = t.key; pickProgram(modelPrograms[0])"
-          >{{ t.label }}</button>
+    <div v-else class="stack" style="gap:14px">
+      <!-- 428 up front: the accept-first banner -->
+      <div v-if="legalRequired" class="callout callout--warn" data-od-id="legal-required">
+        <AppIcon name="shield" :size="17" />
+        <div>
+          New or updated legal terms need your acceptance before this purchase.
+          <a href="#manage/agreements" @click="$emit('close')">Review them under Manage → Agreements</a>.
         </div>
+      </div>
 
-        <!-- 2 · program chips inside the model -->
-        <div v-if="modelPrograms.length > 1" class="btn-row">
+      <!-- 1 · model tabs -->
+      <div v-if="modelTabs.length > 1" class="tabs" role="tablist" aria-label="Challenge model">
+        <button
+          v-for="t in modelTabs"
+          :key="t.key"
+          type="button"
+          class="tab"
+          role="tab"
+          :class="{ 'is-current': t.key === activeModel }"
+          :aria-selected="t.key === activeModel"
+          @click="activeModel = t.key; variantId = variants[0]?.id || ''; platform = platforms[0] || 'mt5'; addonIds = []; scheduleQuote()"
+        >{{ t.label }}</button>
+      </div>
+
+      <div v-if="program" class="stat-card__foot">
+        {{ program.name }}<template v-if="program.tagline"> — {{ program.tagline }}</template>
+      </div>
+
+      <!-- 2 · size -->
+      <div v-if="variants.length" class="table-wrap">
+        <table class="data" style="min-width:460px">
+          <thead>
+            <tr>
+              <th>Size</th>
+              <th class="num">Leverage</th>
+              <th class="num">Price</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="v in variants"
+              :key="v.id"
+              :class="{ 'is-selected': v.id === variantId }"
+              style="cursor:pointer"
+              @click="variantId = v.id"
+            >
+              <td class="cell-strong">{{ sizeLabel(v) }}</td>
+              <td class="num dim">{{ program?.leverage ? `1:${program.leverage}` : '—' }}</td>
+              <td class="num">
+                <span v-if="v.salePrice != null && v.salePrice < v.listPrice" class="dim" style="text-decoration:line-through">{{ money(v.listPrice) }}</span>
+                <span class="up">{{ money(v.salePrice ?? v.listPrice) }}</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 3 · platform -->
+      <div v-if="platforms.length > 1" class="field">
+        <label for="chk-platform">Platform</label>
+        <select id="chk-platform" v-model="platform" class="select">
+          <option v-for="p in platforms" :key="p" :value="p">{{ p }}</option>
+        </select>
+      </div>
+      <p v-else class="stat-card__foot" style="margin-top:-6px">Runs on {{ platformName(platforms[0]) }}</p>
+
+      <!-- 4 · add-ons (exclusive groups collapse each other) -->
+      <div v-if="addons.length">
+        <div class="stat-card__foot" style="margin-bottom:8px">Add-ons</div>
+        <label
+          v-for="a in addons"
+          :key="a.id"
+          class="check chk-addon"
+          :title="a.exclusiveGroup ? 'Exclusive — another add-on in this group cannot ride along' : ''"
+        >
+          <input
+            type="checkbox"
+            :checked="addonIds.includes(a.id)"
+            :disabled="checkoutBusy"
+            @change="toggleAddon(a)"
+          />
+          <span style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">
+            <b>{{ a.name }}</b>
+            <span class="dim" style="font-size:12.5px">{{ a.description || addonPriceLabel(a) }}</span>
+          </span>
+        </label>
+      </div>
+
+      <!-- 5 · coupon + the live quote -->
+      <div v-if="couponError" class="field" style="margin-bottom:-4px">
+        <span class="field__error" style="display:block" data-od-id="coupon-error">{{ couponError }}</span>
+      </div>
+
+      <div class="field">
+        <label for="chk-coupon">Coupon code</label>
+        <input
+          id="chk-coupon"
+          v-model="coupon"
+          class="input"
+          :class="{ 'is-invalid': !!couponError }"
+          placeholder="e.g. WELCOME10"
+          autocomplete="off"
+          :disabled="checkoutBusy"
+          data-od-id="checkout-coupon"
+        />
+      </div>
+
+      <div class="panel" style="box-shadow:none">
+        <div class="panel__head">
+          <span class="panel__title">Today's total</span>
+          <span v-if="quoteBusy" class="stat-card__foot">Pricing…</span>
+        </div>
+        <div v-if="quote" class="kv" style="padding:0 2px 8px">
+          <div v-for="(line, i) in quote.lines" :key="`${line.kind}-${line.refId}-${i}`" class="kv__row">
+            <span class="kv__k">{{ line.kind === 'variant' ? `${program?.name || 'Challenge'} · ${sizeLabel(variant)}` : line.label }}</span>
+            <span class="kv__v">{{ money(line.amount) }}</span>
+          </div>
+          <div v-if="quote.discount > 0" class="kv__row">
+            <span class="kv__k">Discount</span>
+            <span class="kv__v up">−{{ money(quote.discount) }}</span>
+          </div>
+          <div class="kv__row">
+            <span class="kv__k"><b>Total</b></span>
+            <span class="kv__v"><b>{{ money(quote.total) }} {{ quote.currency }}</b></span>
+          </div>
+        </div>
+        <p v-else-if="quoteError" class="stat-card__foot" style="color:var(--red,#e5484d);padding:0 2px 8px">{{ quoteError }}</p>
+      </div>
+
+      <!-- 6 · gateway -->
+      <div class="field">
+        <label for="chk-gateway">Pay with</label>
+        <div class="btn-row">
           <button
-            v-for="p in modelPrograms"
-            :key="p.id"
+            v-for="g in GATEWAYS"
+            :key="g.id"
             type="button"
             class="btn"
-            :class="p.id === program?.id ? 'btn--secondary' : 'btn--ghost'"
-            @click="pickProgram(p)"
-          >{{ p.name }}</button>
+            :class="gateway === g.id ? 'btn--primary' : 'btn--ghost'"
+            :aria-pressed="gateway === g.id"
+            @click="gateway = g.id"
+          >{{ g.label }}</button>
         </div>
-
-        <!-- 3 · size table -->
-        <div class="table-wrap">
-          <table class="data" style="min-width:460px">
-            <thead>
-              <tr>
-                <th>Size</th>
-                <th class="num">Leverage</th>
-                <th class="num">Price</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="v in variants"
-                :key="v.id"
-                :class="{ 'is-selected': v.id === variantId }"
-                style="cursor:pointer"
-                @click="variantId = v.id"
-              >
-                <td class="cell-strong">{{ Math.round(v.accountSize / 1000) }}K</td>
-                <td class="num dim">{{ program?.leverage ? `1:${program.leverage}` : '—' }}</td>
-                <td class="num">
-                  <span v-if="v.salePrice != null && v.salePrice < v.listPrice" class="dim" style="text-decoration:line-through">${{ v.listPrice.toFixed(2) }}</span>
-                  <span class="up">${{ (v.salePrice ?? v.listPrice).toFixed(2) }}</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <!-- 4 · platform -->
-        <div class="field">
-          <label for="chk-platform">Platform</label>
-          <select id="chk-platform" v-model="platform" class="select">
-            <option v-for="p in platforms" :key="p" :value="p">{{ platformName(p) }}</option>
-          </select>
-        </div>
-
-        <!-- 5 · add-ons -->
-        <div v-if="program?.addons?.length" class="field">
-          <label>Add-ons</label>
-          <div class="stack" style="gap:8px">
-            <label
-              v-for="a in program.addons"
-              :key="a.id"
-              class="check chk-addon"
-              :title="a.exclusiveGroup ? 'Another add-on in this group is already selected' : ''"
-            >
-              <input
-                type="checkbox"
-                :checked="chosenAddonIds.includes(a.id)"
-                @change="toggleAddon(a)"
-              />
-              <span style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">
-                <b>{{ a.name }}</b>
-                <span class="dim" style="font-size:12.5px">{{ a.description || '' }}</span>
-                <span class="mono" style="margin-left:auto">{{ addonPriceLabel(a) }}</span>
-              </span>
-            </label>
-          </div>
-        </div>
-
-        <!-- 6 · coupon + referral -->
-        <div class="grid" style="grid-template-columns:1fr 1fr;gap:12px">
-          <div class="field" :class="{ 'is-invalid': !!couponError }">
-            <label for="chk-coupon">Coupon code</label>
-            <input id="chk-coupon" v-model="coupon" class="input" placeholder="e.g. 10KFOR19" autocomplete="off" />
-            <span v-if="couponError" class="field__error" style="display:block">{{ couponError }}</span>
-          </div>
-          <div class="field">
-            <label for="chk-referral">Referral code</label>
-            <input id="chk-referral" :value="referralCode() || ''" class="input" placeholder="Not referred? Leave blank" disabled />
-          </div>
-        </div>
-        <p v-if="referralCode()" class="stat-card__foot" style="margin-top:-6px">
-          Referred by code <b class="mono">{{ referralCode() }}</b> — captured from your link.
-        </p>
-
-        <!-- promo strip: the sale tiers, when one is on offer -->
-        <PromoCard v-if="variant?.salePrice != null && variant.salePrice < variant.listPrice" />
-
-        <!-- legal acceptance gate (428) -->
-        <div v-if="legalRequired" class="callout callout--warn">
-          <AppIcon name="shield" :size="17" />
-          <div>
-            <strong>One step first.</strong> A new or updated legal document needs your acceptance before this purchase.
-            <a class="agr-link" href="#manage/agreements" @click="close">Review and accept under Agreements</a>.
-          </div>
-        </div>
-
-        <!-- quote -->
-        <div class="panel" style="box-shadow:none">
-          <div class="panel__head">
-            <span class="panel__title">Today's total</span>
-            <span class="panel__actions">
-              <span v-if="quoting" class="stat-card__foot">Pricing…</span>
-              <span v-else-if="quote" class="mng-total">${{ quote.total.toFixed(2) }}</span>
-            </span>
-          </div>
-          <div v-if="quote" class="kv" style="padding:0 2px 8px">
-            <div v-for="line in quote.lines" :key="line.refId + line.kind" class="kv__row">
-              <span class="kv__k">{{ line.label }}</span>
-              <span class="kv__v">${{ line.amount.toFixed(2) }}</span>
-            </div>
-            <div v-if="quote.discount > 0" class="kv__row">
-              <span class="kv__k">Discount{{ quote.couponError ? ' (not applied)' : '' }}</span>
-              <span class="kv__v up">−${{ quote.discount.toFixed(2) }}</span>
-            </div>
-          </div>
-          <p v-if="quoteError" class="stat-card__foot" style="color:var(--red,#e5484d)">{{ quoteError }}</p>
-        </div>
-
-        <!-- 7 · gateway -->
-        <div class="field">
-          <label>Pay with</label>
-          <div class="btn-row">
-            <button
-              v-for="g in GATEWAYS"
-              :key="g.id"
-              type="button"
-              class="btn"
-              :class="gateway === g.id ? 'btn--secondary' : 'btn--ghost'"
-              :aria-pressed="gateway === g.id"
-              @click="gateway = g.id"
-            >
-              <AppIcon :name="g.id === 'stripe' ? 'check' : 'wallet'" :size="15" />
-              {{ g.label }} <span class="dim" style="font-weight:400">· {{ g.note }}</span>
-            </button>
-          </div>
-        </div>
-
-        <p v-if="checkoutError" class="stat-card__foot" style="color:var(--red,#e5484d)" role="alert">{{ checkoutError }}</p>
       </div>
-    </template>
+
+      <p v-if="checkoutError" class="stat-card__foot" style="color:var(--red,#e5484d)" role="alert" data-od-id="checkout-error">
+        {{ checkoutError }}
+      </p>
+    </div>
 
     <template #actions>
-      <button class="btn btn--ghost" @click="close">Not now</button>
+      <button class="btn btn--ghost" @click="$emit('close')">Not now</button>
       <button
         class="btn btn--primary"
-        :disabled="loading || loadError || firstRefusal"
+        :disabled="!quote || checkoutBusy || legalRequired"
         data-od-id="checkout-submit"
         @click="submit"
       >
         <AppIcon name="rocket" :size="15" />
-        {{ checkoutBusy ? 'Starting checkout…' : quote ? `Start evaluation — $${quote.total.toFixed(2)}` : 'Start evaluation' }}
+        {{ quote ? `Start evaluation — ${money(quote.total)}` : 'Start evaluation' }}
       </button>
     </template>
   </ModalDialog>
@@ -438,6 +383,5 @@ watch(coupon, () => { if (coupon.value.trim().length >= 4 || !coupon.value.trim(
 
 <style scoped>
 .chk-addon { align-items: flex-start; }
-.is-selected > td { background: color-mix(in oklab, #703ad7 14%, transparent) !important; }
-.agr-link { color: var(--violet-text, #b18cff); text-decoration: underline; }
+.is-selected > td { background: rgba(112, 58, 215, 0.12); }
 </style>
