@@ -99,7 +99,7 @@ function setMode(next) {
 }
 
 function useActive() {
-  balance.value = activeAccount.value.balance
+  if (activeAccount.value) balance.value = activeAccount.value.balance
 }
 
 /*
@@ -110,6 +110,8 @@ function useActive() {
  */
 const limits = computed(() => {
   const account = activeAccount.value
+  /* A trader with no accounts yet has no limits to check against. */
+  if (!account) return { account: null, rows: [], breach: false }
   const spent = maxLossToday(account.number)
   const used = analyticsFor(account.number).maxDrawdown
   const remainingDaily = Math.max(0, account.dailyLoss - spent)
@@ -347,8 +349,8 @@ const NOTES = [
         <div class="panel__head">
           <span class="panel__title">Risk check</span>
           <span class="panel__actions">
-            <span class="stat-card__foot">Against account {{ limits.account.number }}</span>
-            <span v-if="result.riskAmount > 0" class="badge" :class="limits.breach ? 'badge--breached' : 'badge--active'">
+            <span class="stat-card__foot">{{ limits.account ? `Against account ${limits.account.number}` : 'No account yet' }}</span>
+            <span v-if="limits.account && result.riskAmount > 0" class="badge" :class="limits.breach ? 'badge--breached' : 'badge--active'">
               <span class="badge__dot" />{{ limits.breach ? 'would breach a limit' : 'within both limits' }}
             </span>
           </span>
@@ -367,6 +369,7 @@ const NOTES = [
             </div>
             <div class="obj-row__note"><span>{{ r.note }}</span></div>
           </div>
+          <p v-if="!limits.account" class="stat-card__foot">Your loss limits appear here once a trading account is active.</p>
         </div>
         <div class="panel__foot">
           <span class="stat-card__foot">

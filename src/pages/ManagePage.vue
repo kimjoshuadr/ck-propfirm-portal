@@ -1,7 +1,9 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
-import { ACCOUNTS, PAYOUTS, paidPayoutTotal } from '../data/portal.js'
+import ModalDialog from '../components/ModalDialog.vue'
+import { ACCOUNTS, ORDERS, PAYOUTS, paidPayoutTotal, submitPayoutRequest } from '../lib/portal.js'
+import { PAYOUT_METHOD_OPTIONS } from '../lib/api.js'
 import { money } from '../lib/format.js'
 import { pushToast } from '../lib/ui.js'
 import { route } from '../lib/router.js'
@@ -59,23 +61,28 @@ const round2 = (n) => Math.round(n * 100) / 100
 
 /* --------------------------------------------------------------- withdrawals */
 
-const paid = PAYOUTS.filter((p) => p.status === 'paid')
-const inReview = PAYOUTS.filter((p) => p.status === 'pending' || p.status === 'processing')
+/* Live data: the store's PAYOUTS is the CRM's payout ledger for the signed-in
+   trader; the funded accounts and their figures come from the account list. */
+const paid = computed(() => PAYOUTS.filter((p) => p.status === 'paid'))
+const inReview = computed(() => PAYOUTS.filter((p) => p.status === 'pending' || p.status === 'processing'))
 const totalWithdrawn = computed(() => paidPayoutTotal())
-const inReviewTotal = computed(() => inReview.reduce((n, p) => n + p.amount, 0))
+const inReviewTotal = computed(() => inReview.value.reduce((n, p) => n + p.amount, 0))
 
 const STATUS_BADGE = {
   paid: 'badge--active',
+  approved: 'badge--active',
   pending: 'badge--pending',
   processing: 'badge--violet',
+  requested: 'badge--pending',
   rejected: 'badge--rejected',
+  cancelled: 'badge--rejected',
 }
 
 const filter = ref('')
 const history = computed(() => {
   const needle = filter.value.trim().toLowerCase()
   if (!needle) return PAYOUTS
-  return PAYOUTS.filter((p) => `${p.id} ${p.status} ${p.method} ${p.account}`.toLowerCase().includes(needle))
+  return PAYOUTS.filter((p) => `${p.shortId} ${p.id} ${p.status} ${p.method} ${p.account} ${p.kind}`.toLowerCase().includes(needle))
 })
 
 const view = ref('summary')
@@ -86,7 +93,7 @@ const view = ref('summary')
  * what has already been paid out, and when the last payout landed.
  */
 const summary = computed(() => ACCOUNTS.filter((a) => a.status === 'funded').map((a) => {
-  const mine = PAYOUTS.filter((p) => p.account === a.id)
+  const mine = PAYOUTS.filter((p) => p.accountId === a.id)
   const settled = mine.filter((p) => p.status === 'paid')
   const split = (mine.find((p) => p.split) || {}).split || 90
   const withdrawn = round2(settled.reduce((n, p) => n + p.amount, 0))
@@ -111,6 +118,56 @@ const summaryTotals = computed(() => summary.value.reduce((t, r) => ({
   lifetime: round2(t.lifetime + r.lifetime),
 }), { profit: 0, share: 0, withdrawn: 0, lifetime: 0 }))
 
+/* --------------------------------------------- payout request (New request) */
+
+const requestOpen = ref(false)
+const requestBusy = ref(false)
+const requestError = ref('')
+const requestForm = ref({ tradingAccountId: '', method: 'paypal', destination: '' })
+
+function openRequest() {
+  const funded = ACCOUNTS.filter((a) => a.status === 'funded')
+  const settledTypes = new Set(['paid', 'approved'])
+  /* Preselect the funded account with no open request, else the first one. */
+  const free = funded.find((a) => !inReview.value.some((p) => p.accountId === a.id && !settledTypes.has(p.status)))
+  requestForm.value = { tradingAccountId: free?.id || funded[0]?.id || '', method: 'paypal', destination: '' }
+  requestError.value = ''
+  requestOpen.value = true
+}
+
+const requestAccount = computed(() =>
+  ACCOUNTS.find((a) => a.id === requestForm.value.tradingAccountId) || null)
+
+/* The destination field's prompt follows the chosen rail. */
+const requestHint = computed(() =>
+  PAYOUT_METHOD_OPTIONS.find((m) => m.id === requestForm.value.method)?.hint || '')
+
+async function submitRequest() {
+  if (requestBusy.value) return
+  const { tradingAccountId, method, destination } = requestForm.value
+  if (!tradingAccountId || !destination.trim()) {
+    requestError.value = 'Choose the account and fill in the destination.'
+    return
+  }
+  requestBusy.value = true
+  requestError.value = ''
+  try {
+    const result = await submitPayoutRequest({ tradingAccountId, method, destination: destination.trim() })
+    requestOpen.value = false
+    pushToast({
+      tone: 'good',
+      title: 'Payout requested',
+      msg: `${money(result?.payout?.amount ?? 0)} is in review${result?.payout?.dueBy ? ` · due by ${new Date(result.payout.dueBy).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}.`,
+    })
+  } catch (err) {
+    /* Ineligibility comes back 422 with the desk's message + a stable code —
+       show exactly that; anything else keeps the form open with the error. */
+    requestError.value = err?.message || 'Could not request the payout. Please try again.'
+  } finally {
+    requestBusy.value = false
+  }
+}
+
 /* ------------------------------------------------------------------- methods */
 
 /* Two rails, the two the desk actually pays out on. */
@@ -132,21 +189,23 @@ function editMethod(method) {
 
 /* ------------------------------------------------------------------- billing */
 
-/* Dates, orders and totals are the ones the lifecycle alerts already use. */
-const ORDERS = [
-  { id: '#378173', date: 'Aug 3, 2026', dateISO: '2026-08-24', item: 'CK 100K Challenge', total: 164.5, status: 'paid' },
-  { id: '#376120', date: 'Jul 30, 2026', dateISO: '2026-07-30', item: 'CK 50K Swing Challenge', total: 118, status: 'paid' },
-  { id: '#374903', date: 'Jun 2, 2026', dateISO: '2026-06-02', item: 'CK 100K Reset', total: 58, status: 'paid' },
-  { id: '#378001', date: 'Sep 19, 2026', dateISO: '2026-09-19', item: 'CK 200K Challenge', total: 359, status: 'pending' },
-  { id: '#371204', date: 'May 11, 2026', dateISO: '2026-05-11', item: 'CK 25K Challenge', total: 84, status: 'paid' },
-  { id: '#370088', date: 'May 2, 2026', dateISO: '2026-05-02', item: 'CK 25K Reset', total: 42, status: 'refunded' },
-]
+/* Live orders — the CRM's sales orders for this trader (GET /orders), loaded
+   through the store like the payouts above. `paymentStatus` is the honest
+   charge state; the workflow status alone says nothing about the money. */
+const ORDER_STATUS_BADGE = {
+  paid: 'badge--active',
+  unpaid: 'badge--pending',
+  pending: 'badge--pending',
+  partial: 'badge--violet',
+  refunded: 'badge--rejected',
+  cancelled: 'badge--rejected',
+}
 
 const BILLING_FILTERS = [
   { key: 'all', label: 'All statuses' },
   { key: 'paid', label: 'Paid' },
-  { key: 'pending', label: 'Pending' },
-  { key: 'refunded', label: 'Refunded' },
+  { key: 'unpaid', label: 'Unpaid' },
+  { key: 'partial', label: 'Partially paid' },
 ]
 
 const billingFilter = ref('all')
@@ -168,18 +227,13 @@ const rangeLabel = computed(() => {
 watch([billingFilter, perPage], () => { page.value = 1 })
 
 function invoice(order) {
-  pushToast({ tone: 'info', title: `Invoice ${order.id}`, msg: `${order.item} · ${money(order.total)}. This prototype bundles no PDF.` })
+  pushToast({ tone: 'info', title: `Invoice ${order.id}`, msg: `${order.date} · ${money(order.total)}` })
 }
 
 /* -------------------------------------------------------------------- shared */
 
-function requestPayout() {
-  pushToast({
-    tone: 'info',
-    title: 'Request payout',
-    msg: 'The live portal opens the payout request flow; this prototype keeps everything on-screen.',
-  })
-}
+/* The "New request" button opens the payout request dialog (see the
+   withdrawals script block). */
 
 </script>
 
@@ -194,7 +248,7 @@ function requestPayout() {
       <div class="page-head__actions">
         <template v-if="tab === 'withdrawals'">
           <button class="btn btn--ghost" @click="select('methods')">Payout methods</button>
-          <button class="btn btn--ghost" data-od-id="request-payout-cta" @click="requestPayout">
+          <button class="btn btn--ghost" data-od-id="request-payout-cta" @click="openRequest">
             <AppIcon name="plus" :size="15" />New request
           </button>
         </template>
@@ -327,14 +381,18 @@ function requestPayout() {
             </thead>
             <tbody>
               <tr v-for="p in history" :key="p.id">
-                <td class="mono-id">{{ p.id }}</td>
+                <td class="mono-id" :title="p.id">{{ p.shortId }}</td>
                 <td class="cell-strong">{{ p.account }}</td>
                 <td class="num">{{ p.amount ? money(p.amount) : '—' }}</td>
                 <td>{{ p.method }}</td>
                 <td class="num">{{ p.split ? `${p.split}%` : '—' }}</td>
                 <td class="dim">{{ p.requested }}</td>
                 <td class="dim">{{ p.settled }}</td>
-                <td><span class="badge" :class="STATUS_BADGE[p.status]"><span class="badge__dot" />{{ p.status }}</span></td>
+                <td>
+                  <span class="badge" :class="STATUS_BADGE[p.status]" :title="p.rejectReason || ''">
+                    <span class="badge__dot" />{{ p.status }}
+                  </span>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -406,8 +464,7 @@ function requestPayout() {
             <tr>
               <th>Date</th>
               <th>Order</th>
-              <th>Product</th>
-              <th class="num">Amount</th>
+              <th>Amount</th>
               <th>Status</th>
               <th class="num">Receipt</th>
             </tr>
@@ -416,10 +473,9 @@ function requestPayout() {
             <tr v-for="o in billingPage" :key="o.id">
               <td class="dim">{{ o.date }}</td>
               <td class="mono-id">{{ o.id }}</td>
-              <td class="cell-strong">{{ o.item }}</td>
               <td class="num">{{ money(o.total) }}</td>
               <td>
-                <span class="badge" :class="o.status === 'paid' ? 'badge--active' : o.status === 'pending' ? 'badge--pending' : 'badge'">
+                <span class="badge" :class="ORDER_STATUS_BADGE[o.status] || 'badge--pending'">
                   <span class="badge__dot" />{{ o.status }}
                 </span>
               </td>
@@ -434,7 +490,8 @@ function requestPayout() {
       </div>
 
       <div v-if="!billingRows.length" class="empty">
-        <strong>Nothing with that status</strong>Choose another status to see the orders behind it.
+        <template v-if="billingFilter === 'all'"><strong>No orders yet</strong>Every order you place at checkout appears here with its receipt.</template>
+        <template v-else><strong>Nothing with that status</strong>Choose another status to see the orders behind it.</template>
       </div>
 
       <div class="mng-pager">
@@ -455,5 +512,68 @@ function requestPayout() {
         </button>
       </div>
     </section>
+
+    <!-- Payout request: account + rail + destination; the desk's eligibility
+       errors (422 + their own message) show inside the dialog. -->
+  <ModalDialog
+    v-if="requestOpen"
+    title="Request a payout"
+    subtitle="At the close of a cycle, on your share of the account's profit."
+    @close="requestOpen = false"
+  >
+    <div class="stack" style="gap:12px">
+      <div class="field">
+        <label for="po-account">Funded account</label>
+        <select id="po-account" v-model="requestForm.tradingAccountId" class="select" data-od-id="payout-account">
+          <option disabled value="">Choose an account</option>
+          <option v-for="a in ACCOUNTS.filter((x) => x.status === 'funded')" :key="a.id" :value="a.id">
+            {{ a.number }} · {{ a.label }} — profit {{ money(a.pnl) }}
+          </option>
+        </select>
+        <p v-if="!ACCOUNTS.some((x) => x.status === 'funded')" class="stat-card__foot">
+          No funded accounts yet — a payout opens up once an evaluation is funded.
+        </p>
+      </div>
+
+      <div class="field">
+        <label for="po-method">Method</label>
+        <select id="po-method" v-model="requestForm.method" class="select" data-od-id="payout-method">
+          <option v-for="m in PAYOUT_METHOD_OPTIONS" :key="m.id" :value="m.id">{{ m.label }}</option>
+        </select>
+        <span class="stat-card__foot">{{ requestHint }}</span>
+      </div>
+
+      <div class="field">
+        <label for="po-destination">Destination</label>
+        <input
+          id="po-destination"
+          v-model="requestForm.destination"
+          class="input"
+          :placeholder="requestHint"
+          autocomplete="off"
+          data-od-id="payout-destination"
+        />
+      </div>
+
+      <p v-if="requestError" class="stat-card__foot" style="color:var(--red,#e5484d)" role="alert" data-od-id="payout-error">
+        {{ requestError }}
+      </p>
+
+      <div class="callout">
+        <AppIcon name="check" :size="17" />
+        <div>Requests are reviewed within one business day; the median settlement is under 24 hours after approval.</div>
+      </div>
+    </div>
+
+    <template #actions>
+      <button class="btn btn--ghost" @click="requestOpen = false">Cancel</button>
+      <button
+        class="btn btn--primary"
+        :disabled="requestBusy || !requestForm.tradingAccountId || !requestForm.destination.trim()"
+        data-od-id="payout-submit"
+        @click="submitRequest"
+      >{{ requestBusy ? 'Submitting…' : 'Submit request' }}</button>
+    </template>
+  </ModalDialog>
   </div>
 </template>

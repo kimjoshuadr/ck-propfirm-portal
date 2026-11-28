@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "news": "node scripts/fetch-news.mjs",
     "capture": "node scripts/capture.mjs",
+    "qa:sweep": "node scripts/qa-sweep.mjs",
     "check": "node scripts/capture.mjs --check"
   },
   "dependencies": {

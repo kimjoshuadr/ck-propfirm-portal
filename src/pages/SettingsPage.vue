@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
-import { USER } from '../data/portal.js'
+import { USER, kyc, submitKycDocument } from '../lib/portal.js'
 import { pushToast } from '../lib/ui.js'
 import { SETTINGS_TABS, route } from '../lib/router.js'
 
@@ -18,7 +18,7 @@ import { SETTINGS_TABS, route } from '../lib/router.js'
  * this portal has never been given a date of birth or a street address, and
  * inventing one on a screen about identity would be the wrong kind of tidy.
  * Likewise the security rows: the enabled and verified states come from the
- * account (`USER.kyc`, the two-factor flag), not from the page.
+ * account (the live KYC state via the store's kyc loader), not from the page.
  */
 /* Kept in step with `SETTINGS_TABS` in the router, which validates the hash. */
 const SECTIONS = [
@@ -127,6 +127,53 @@ function saveNotifs() {
 }
 
 const help = (title, msg) => pushToast({ tone: 'info', title, msg })
+
+/* ------------------------------------------------------------ KYC (live) */
+
+/* The CRM's KYC state: status + the documents on file, and the multipart
+   upload to POST /kyc (file + docType). Errors — an unknown type, an over-size
+   file, a command rejection — show under the form. */
+const DOC_TYPE_LABELS = {
+  id_front: 'ID — front',
+  id_back: 'ID — back',
+  proof_of_address: 'Proof of address',
+  selfie: 'Selfie with ID',
+}
+
+const KYC_STATUS_LABELS = {
+  none: 'Not started',
+  pending: 'In review',
+  submitted: 'In review',
+  approved: 'Verified',
+  rejected: 'Documents requested',
+}
+
+const kycStatusLabel = computed(() => KYC_STATUS_LABELS[kyc.status] || kyc.status)
+
+const kycUpload = ref({ docType: 'id_front' })
+const kycFileInput = ref(null)
+const kycBusy = ref(false)
+const kycError = ref('')
+
+async function uploadDocument() {
+  const input = kycFileInput.value
+  const file = input?.files?.[0]
+  if (!file) {
+    kycError.value = 'Choose a document to upload.'
+    return
+  }
+  kycBusy.value = true
+  kycError.value = ''
+  try {
+    await submitKycDocument(file, kycUpload.value.docType)
+    pushToast({ tone: 'good', title: 'Document uploaded', msg: `${file.name} is in the desk's review queue.` })
+    if (input) input.value = ''
+  } catch (err) {
+    kycError.value = err?.message || 'The upload failed. Please try again.'
+  } finally {
+    kycBusy.value = false
+  }
+}
 </script>
 
 <template>
@@ -246,13 +293,65 @@ const help = (title, msg) => pushToast({ tone: 'info', title, msg })
     <template v-else-if="tab === 'identity'">
       <section class="panel stg-verify util-gap" style="margin-top:18px" data-od-id="identity-verification">
         <span class="stg-verify__badge"><AppIcon name="shield" :size="26" /></span>
-        <h2 class="stg-verify__title">{{ USER.kyc === 'verified' ? 'Identity verified' : 'Documents requested' }}</h2>
+        <h2 class="stg-verify__title">{{ kycStatusLabel }}</h2>
         <p class="stg-verify__body">
-          Your identity check is complete, so withdrawals and the full set of platform features are unlocked.
+          {{ kyc.status === 'approved'
+            ? 'Your identity check is complete, so withdrawals and the full set of platform features are unlocked.'
+            : kyc.rejectionReason
+              ? `The desk asked for new documents: ${kyc.rejectionReason}`
+              : 'Upload your identity documents to unlock withdrawals and higher limits. The desk reviews within one business day.' }}
         </p>
-        <button class="btn btn--ghost" @click="help('View verification', 'The live portal opens the verification record — this prototype holds none of your documents.')">
-          <AppIcon name="shield" :size="15" />View verification
-        </button>
+        <span v-if="kyc.submittedAt" class="stat-card__foot">Submitted {{ new Date(kyc.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }}</span>
+      </section>
+
+      <section class="panel util-gap" style="margin-top:18px" data-od-id="kyc-documents">
+        <div class="panel__head">
+          <span class="panel__title">Identity documents</span>
+          <span class="panel__actions">
+            <span class="badge" :class="kyc.status === 'approved' ? 'badge--active' : 'badge--pending'"><span class="badge__dot" />{{ kycStatusLabel }}</span>
+          </span>
+        </div>
+
+        <div v-if="kyc.documents.length" class="stack" style="gap:8px;padding:2px 0 10px">
+          <div v-for="d in kyc.documents" :key="d.id" class="mth-row">
+            <span class="mth-row__mark"><AppIcon name="download" :size="18" /></span>
+            <span class="mth-row__id">
+              <b>{{ d.fileName }}</b>
+              <span>{{ DOC_TYPE_LABELS[d.docType] || 'Document' }} · {{ (d.fileSize / 1024).toFixed(0) }} KB</span>
+            </span>
+            <span class="mth-row__actions">
+              <span class="stat-card__foot">{{ d.uploadedAt ? new Date(d.uploadedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '' }}</span>
+            </span>
+          </div>
+        </div>
+        <p v-else-if="kyc.loaded" class="dim" style="font-size:13px">No documents on file yet.</p>
+
+        <div class="panel__body" style="padding-top:8px">
+          <div class="grid grid--cols-2 stg-grid">
+            <div class="field">
+              <label for="kyc-doc-type">Document type</label>
+              <select id="kyc-doc-type" v-model="kycUpload.docType" class="select" data-od-id="kyc-doc-type">
+                <option value="id_front">ID — front</option>
+                <option value="id_back">ID — back</option>
+                <option value="proof_of_address">Proof of address</option>
+                <option value="selfie">Selfie with ID</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="kyc-file">File (PDF, PNG or JPG · up to 10 MB)</label>
+              <input id="kyc-file" ref="kycFileInput" class="input" type="file" accept=".pdf,.png,.jpg,.jpeg" data-od-id="kyc-file" />
+            </div>
+          </div>
+
+          <p v-if="kycError" class="stat-card__foot" style="color:var(--red,#e5484d)" role="alert" data-od-id="kyc-error">{{ kycError }}</p>
+
+          <div class="util-foot">
+            <button class="btn btn--ghost" :disabled="kycBusy" data-od-id="kyc-upload" @click="uploadDocument">
+              <AppIcon name="download" :size="15" />{{ kycBusy ? 'Uploading…' : 'Upload document' }}
+            </button>
+            <span class="stat-card__foot">Uploads go straight to the desk's review queue — nothing stays in the browser.</span>
+          </div>
+        </div>
       </section>
 
       <div class="grid grid--cols-3" style="margin-top:18px" data-od-id="verification-facts">

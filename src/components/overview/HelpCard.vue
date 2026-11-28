@@ -21,7 +21,7 @@ const searching = computed(() => query.value.trim().length > 0)
     <div class="help">
       <span class="help__icon" aria-hidden="true"><AppIcon name="help" :size="22" /></span>
       <h3 class="help__title">Hey, need any help?</h3>
-      <p class="help__sub">Browse the knowledge base and FAQs, or reach support directly for account-specific questions.</p>
+      <p class="help__sub">Browse the knowledge base and FAQs, or reach support directly for account-specific questions. <span class="demo-badge">Demo data</span></p>
 
       <label class="help__search">
         <AppIcon name="search" :size="16" />

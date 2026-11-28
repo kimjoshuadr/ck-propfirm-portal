@@ -1,131 +1,53 @@
 /*
- * Slice of the portal dataset the Vue app needs. Mirrors assets/js/data.js,
- * which is still the source for the static pages.
+ * Decorative content + the display helpers derived from live trades.
  *
- * `spark` arrays are demo series: each one starts at the account size and ends
- * at its current balance, so the card's chart and its number agree. They are
- * simulated, like every other figure in this prototype.
+ * Everything the CRM API serves (USER, ACCOUNTS, PAYOUTS, notifications,
+ * certificates, leaderboard, affiliate) lives in the store, `src/lib/portal.js`,
+ * populated by `src/lib/api.js`; the API answers in exactly these shapes and
+ * the field mapping happens once, in `api.js`'s mappers — never here, never in
+ * the components.
+ *
+ * What remains in this module is:
+ * - decorative copy the API has no endpoint for (the desk's NEWS, the FAQS,
+ *   the demo EQUITY_CURVE behind the Overview promo charts) — each carries a
+ *   "Demo data" badge where it renders;
+ * - the INSTRUMENT reference table the sizer and the price columns need;
+ * - the trade/analytics/calendar machinery that turns an account's LIVE
+ *   trades (pushed in by the store through `setLiveAccount`) into the tables
+ *   the Trades/Calendar/Analysis tabs render, and the same math the Overview
+ *   cards read. With no live trades registered yet, every helper degrades to
+ *   empty zeros rather than to invented rows.
  */
 
-export const USER = {
-  name: 'Kim Joshua',
-  handle: 'kimjoshua',
-  email: 'kim@ckpropfirm.com',
-  initials: 'KJ',
-  plan: 'CK Fam',
-  joined: 'Mar 2026',
-  country: 'PH',
-  kyc: 'verified',
+import { reactive } from 'vue'
+
+/* ==========================================================================
+   Live-data registry — the store registers each account's summary (and, for
+   the open one, its detail) here; the display helpers below read it.
+   ========================================================================== */
+
+export const LIVE = reactive({ byNumber: {} })
+
+/**
+ * Register one account for the display helpers.
+ * `account` is the demo-shaped summary (lib/portal.ACCOUNTS member);
+ * `trades` (optional) are the mapped live trade rows (api.js mapTrade).
+ */
+export function setLiveAccount(number, { account, trades } = {}) {
+  if (!number) return
+  const prev = LIVE.byNumber[String(number)]
+  LIVE.byNumber[String(number)] = {
+    account: account || prev?.account || null,
+    trades: trades || prev?.trades || [],
+  }
 }
 
-export const ACCOUNTS = [
-  {
-    id: 'CK-100K-2418', number: '412907', label: 'CK 100K Evaluation', plan: '100K Challenge',
-    phase: 'Phase 1 · Evaluation', status: 'active', platform: 'TradeLocker',
-    size: 100000, balance: 101593, equity: 101742, pnl: 1593, roi: 1.59,
-    profitTarget: 8000, maxLoss: 8000, dailyLoss: 4000, maxLossUsed: 2321,
-    drawdownType: 'Trailing Lock', minTradingDays: 4, consistency: 72, profitFactor: 1.82,
-    avgWinLoss: 3.9, maxDrawdown: 2.31, recovery: 4.1,
-    tradingDays: 2, winRate: 61.4, score: 83.23, started: '2026-08-24',
-    spark: [100000, 100180, 100420, 100180, 100640, 100910, 101240, 100980, 101360, 101180, 101540, 101593],
-  },
-  {
-    id: 'CK-50K-9032', number: '418233', label: 'CK 50K Swing', plan: '50K Challenge',
-    phase: 'Phase 2 · Verification', status: 'active', platform: 'MetaTrader 5',
-    size: 50000, balance: 52480, equity: 52310, pnl: 2480, roi: 4.96,
-    profitTarget: 2500, maxLoss: 4000, dailyLoss: 2000, maxLossUsed: 640,
-    drawdownType: 'Static', minTradingDays: 4, consistency: 64, profitFactor: 1.64,
-    avgWinLoss: 2.8, maxDrawdown: 1.42, recovery: 3.2,
-    tradingDays: 6, winRate: 57.9, score: 76.4, started: '2026-07-30',
-    spark: [50000, 50240, 50110, 50480, 50720, 50560, 51040, 51320, 51180, 51860, 52120, 52480],
-  },
-  {
-    id: 'CK-25K-5510', number: '401566', label: 'CK 25K Funded', plan: '25K Funded',
-    phase: 'Funded · Payout cycle 3', status: 'funded', platform: 'TradeLocker',
-    size: 25000, balance: 27640, equity: 27490, pnl: 2640, roi: 10.56,
-    profitTarget: 0, maxLoss: 2000, dailyLoss: 1000, maxLossUsed: 210,
-    drawdownType: 'Trailing Lock', minTradingDays: 0, consistency: 68, profitFactor: 1.97,
-    avgWinLoss: 3.1, maxDrawdown: 1.08, recovery: 5.3,
-    tradingDays: 21, winRate: 59.2, score: 91.7, started: '2026-05-11',
-    spark: [25000, 25380, 25610, 25420, 25940, 26280, 26110, 26640, 26980, 26720, 27310, 27640],
-  },
-  {
-    id: 'CK-100K-1904', number: '409118', label: 'CK 100K Evaluation · attempt 2', plan: '100K Challenge',
-    phase: 'Phase 1 · Evaluation', status: 'breached', platform: 'MetaTrader 5',
-    size: 100000, balance: 91800, equity: 91800, pnl: -8200, roi: -8.2,
-    profitTarget: 8000, maxLoss: 8000, dailyLoss: 4000, maxLossUsed: 8000,
-    drawdownType: 'Static', minTradingDays: 4, consistency: 38, profitFactor: 0.71,
-    avgWinLoss: 1.1, maxDrawdown: 8.2, recovery: 0.6,
-    tradingDays: 9, winRate: 42.1, score: 41.2, started: '2026-06-02',
-    spark: [100000, 99240, 98610, 97380, 96520, 95410, 94860, 93640, 92980, 92410, 91960, 91800],
-  },
-]
+export const accountByNumber = (number) =>
+  LIVE.byNumber[String(number)]?.account || null
 
-export const PAYOUTS = [
-  { id: 'PO-44821', account: 'CK-25K-5510', amount: 6120, method: 'RisePay', requested: '2026-09-02', settled: '2026-09-04', status: 'paid', split: 90 },
-  { id: 'PO-44680', account: 'CK-25K-5510', amount: 4380, method: 'USDT (TRC-20)', requested: '2026-08-12', settled: '2026-08-13', status: 'paid', split: 90 },
-  { id: 'PO-44702', account: 'CK-25K-5510', amount: 3980, method: 'PayPal', requested: '2026-08-27', settled: '—', status: 'processing', split: 80 },
-  { id: 'PO-44417', account: 'CK-25K-5510', amount: 2450, method: 'RisePay', requested: '2026-07-22', settled: '2026-07-24', status: 'paid', split: 80 },
-  { id: 'PO-44990', account: 'CK-25K-5510', amount: 1800, method: 'Bank transfer', requested: '2026-09-16', settled: '—', status: 'pending', split: 90 },
-  { id: 'PO-44103', account: 'CK-100K-1904', amount: 0, method: 'RisePay', requested: '2026-06-28', settled: '—', status: 'rejected', split: 0 },
-]
-
-export const paidPayoutTotal = () =>
-  PAYOUTS.filter((p) => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0)
-
-/*
- * Account lifecycle, in the order a trader actually meets it. Copy addresses
- * the trader and names accounts by their label — no account ids, order numbers
- * or other back-office identifiers on this surface. `category` drives the
- * alert filters on Overview and the severity tone everywhere.
- */
-export const NOTIFICATIONS = [
-  { id: 'account-breached', account: '409118', category: 'risk', icon: 'alert', tone: 'warn', title: 'Account Breached', msg: 'Account 409118 · CK 100K Evaluation hit the $8,000.00 maximum loss (8.0% of capital) — equity closed at $91,800.00.', time: '18 days ago' },
-  { id: 'account-ready', account: '412907', category: 'info', icon: 'check', tone: 'good', title: 'Account Ready', msg: 'Account 412907 · your CK 100K Evaluation is ready. Time to trade.', time: 'about 1 month ago' },
-  { id: 'phase-passed', account: '418233', category: 'info', icon: 'check', tone: 'good', title: 'Phase Passed', msg: 'Account 418233 · your CK 50K Swing passed Phase 1. Phase 2 verification unlocks now.', time: 'about 1 month ago' },
-  { id: 'order-cf50k', account: '418233', category: 'payout', icon: 'info', tone: 'info', title: 'Order Confirmation', msg: 'Account 418233 · your CK 50K Swing evaluation order is confirmed — $118.00 paid with code 10KFOR19.', time: 'about 2 months ago' },
-  { id: 'order-cf100k', account: '409118', category: 'payout', icon: 'info', tone: 'info', title: 'Order Confirmation', msg: 'Account 409118 · your CK 100K Evaluation order is confirmed — $193.00 paid.', time: 'about 3 months ago' },
-]
-
-export const pendingPayoutCount = () =>
-  PAYOUTS.filter((p) => p.status === 'pending' || p.status === 'processing').length
-
-/* Session-by-session balance for the active evaluation (Aug 24 → Sep 19). */
-export const EQUITY_CURVE = [
-  { d: 'Aug 24', v: 100000 }, { d: 'Aug 25', v: 100420 }, { d: 'Aug 26', v: 100180 },
-  { d: 'Aug 27', v: 100640 }, { d: 'Aug 28', v: 100410 }, { d: 'Aug 31', v: 100890 },
-  { d: 'Sep 01', v: 101240 }, { d: 'Sep 02', v: 100980 }, { d: 'Sep 03', v: 101360 },
-  { d: 'Sep 04', v: 101120 }, { d: 'Sep 07', v: 101480 }, { d: 'Sep 08', v: 101210 },
-  { d: 'Sep 09', v: 101640 }, { d: 'Sep 10', v: 101390 }, { d: 'Sep 11', v: 101760 },
-  { d: 'Sep 14', v: 101420 }, { d: 'Sep 15', v: 101880 }, { d: 'Sep 16', v: 101540 },
-  { d: 'Sep 17', v: 101930 }, { d: 'Sep 18', v: 101610 }, { d: 'Sep 19', v: 101593 },
-]
-
-/* Season standings, best first. The Overview card shows the top three; the
-   Community · Leaderboard screen shows the whole table. */
-export const LEADERBOARD = [
-  { rank: 1, handle: 'vael.trades', country: 'SG', account: '200K', roi: 41.6, profit: 83200, streak: 14, verified: true },
-  { rank: 2, handle: 'mira.quant', country: 'GB', account: '200K', roi: 38.2, profit: 76400, streak: 9, verified: true },
-  { rank: 3, handle: 'dz.nexus', country: 'AE', account: '100K', roi: 35.7, profit: 35700, streak: 12, verified: true },
-  { rank: 4, handle: 'kimjoshua', country: 'PH', account: '25K', roi: 33.4, profit: 2640, streak: 7, verified: true, isUser: true },
-  { rank: 5, handle: 'sable.alpha', country: 'DE', account: '100K', roi: 31.1, profit: 31100, streak: 5, verified: true },
-  { rank: 6, handle: 'noct.fx', country: 'BR', account: '50K', roi: 29.8, profit: 14900, streak: 8, verified: false },
-  { rank: 7, handle: 'orla.trend', country: 'IE', account: '100K', roi: 28.4, profit: 28400, streak: 6, verified: true },
-  { rank: 8, handle: 'hiro.swing', country: 'JP', account: '50K', roi: 26.9, profit: 13450, streak: 4, verified: true },
-  { rank: 9, handle: 'petra.scalp', country: 'CZ', account: '25K', roi: 25.2, profit: 6300, streak: 11, verified: true },
-  { rank: 10, handle: 'abel.gold', country: 'ZA', account: '100K', roi: 24.0, profit: 24000, streak: 3, verified: false },
-]
-
-/*
- * Certificates carry a verification code because the holder is meant to type
- * it back in — so the code stays, but the account is named by its label, not
- * by the internal id.
- */
-export const CERTIFICATES = [
-  { code: 'CK-CERT-8F42-9017', account: 'CK 25K Funded', number: '401566', title: 'Funded account certificate', total: 16930, issues: 'Payout cycle 3', issued: '22 Jan 2025' },
-  { code: 'CK-CERT-2B77-4410', account: 'CK 25K Funded', number: '401566', title: 'Verification certificate', total: 8350, issues: 'Phase 2 cleared', issued: '22 Jan 2025' },
-  { code: 'CK-CERT-51A9-3388', account: 'CK 50K Swing', number: '418233', title: 'Evaluation certificate', total: 2480, issues: 'Phase 1 cleared', issued: '22 Jan 2025' },
-]
+/* ------------------------------------------------------------------------- */
+/* Decorative, non-API content                                               */
+/* ------------------------------------------------------------------------- */
 
 /* Desk notes and wire copy for the Market · Newsroom tab. */
 export const NEWS = [
@@ -144,12 +66,20 @@ export const FAQS = [
   { q: 'How is consistency scored?', a: 'Consistency compares your best day\u2019s profit to your total profit. A lower number means your result is spread across sessions rather than concentrated in one.' },
 ]
 
-/* ==========================================================================
-   Derived demo content — the trade log, the calendar and the analytics are
-   generated once from each account's own balance curve, so every trade, day
-   and bucket reconciles with that account's P&L instead of being authored by
-   hand and drifting. Same demo-data caveat as the rest of this prototype.
-   ========================================================================== */
+/*
+ * The demo equity curve behind the Overview's decorative promo charts.
+ * NOT live data — the account cards and the Equity card's real series come
+ * from the API.
+ */
+export const EQUITY_CURVE = [
+  { d: 'Aug 24', v: 100000 }, { d: 'Aug 25', v: 100420 }, { d: 'Aug 26', v: 100180 },
+  { d: 'Aug 27', v: 100640 }, { d: 'Aug 28', v: 100410 }, { d: 'Aug 31', v: 100890 },
+  { d: 'Sep 01', v: 101240 }, { d: 'Sep 02', v: 100980 }, { d: 'Sep 03', v: 101360 },
+  { d: 'Sep 04', v: 101120 }, { d: 'Sep 07', v: 101480 }, { d: 'Sep 08', v: 101210 },
+  { d: 'Sep 09', v: 101640 }, { d: 'Sep 10', v: 101390 }, { d: 'Sep 11', v: 101760 },
+  { d: 'Sep 14', v: 101420 }, { d: 'Sep 15', v: 101880 }, { d: 'Sep 16', v: 101540 },
+  { d: 'Sep 17', v: 101930 }, { d: 'Sep 18', v: 101610 }, { d: 'Sep 19', v: 101593 },
+]
 
 /*
  * The instrument table the whole portal reads.
@@ -171,40 +101,6 @@ export const INSTRUMENTS = [
   { symbol: 'USDJPY', label: 'USD/JPY', contract: 100000, pip: 0.01, unit: 'pips', price: 147.42, usdPerPoint: 680 },
 ]
 
-const TAGS = ['Scalp', 'Swing', 'Breakout', 'Reversal', 'Trend', 'News trading']
-
-/* Deterministic PRNG so the log is identical on every load. */
-const prng = (seed) => {
-  let a = seed >>> 0
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0
-    let t = Math.imul(a ^ (a >>> 15), 1 | a)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
-
-function businessDays(startISO, count) {
-  const out = []
-  const d = new Date(`${startISO}T00:00:00Z`)
-  while (out.length < count) {
-    const wd = d.getUTCDay()
-    if (wd !== 0 && wd !== 6) out.push(d.toISOString().slice(0, 10))
-    d.setUTCDate(d.getUTCDate() + 1)
-  }
-  return out
-}
-
-const round2 = (n) => Math.round(n * 100) / 100
-const ACTIVE_ID = ACCOUNTS[0].id
-const seriesOf = (a) => (a.id === ACTIVE_ID ? EQUITY_CURVE.map((p) => p.v) : a.spark)
-
-/* A flat per-lot cost on the simulated book, stated so the Profit / Commission
-   / Net PnL columns add up: profit (gross) − commission = the net that the
-   balance curve is built from. */
-const COMMISSION_PER_LOT = 3.5
-const commissionFor = (lots) => round2(lots * COMMISSION_PER_LOT)
-
 /* Display precision per instrument — a EURUSD entry is not 3,182.4019. */
 const PRICE_DP = { XAUUSD: 2, NAS100: 2, EURUSD: 5, US30: 1, GBPJPY: 3, US100: 2, GER30: 2, USDJPY: 3 }
 const dpFor = (symbol) => PRICE_DP[symbol] ?? 2
@@ -217,149 +113,37 @@ export const priceAt = (v, symbol) =>
     minimumFractionDigits: dpFor(symbol),
     maximumFractionDigits: dpFor(symbol),
   })
-const fix = (n, symbol) => Number(n.toFixed(dpFor(symbol)))
 
-function buildLog(account) {
-  const rnd = prng(Number(account.number))
-  const series = seriesOf(account)
-  const dates = businessDays(account.started, series.length)
-  const trades = []
-  let ticket = 90000 + (Number(account.number) % 900)
+/* ==========================================================================
+   Display math over the LIVE trades (registered above by the store).
+   ========================================================================== */
 
-  const at = (h, m) => `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-  const emit = (share, date) => {
-    const inst = INSTRUMENTS[Math.floor(rnd() * INSTRUMENTS.length)]
-    const lots = round2(0.3 + rnd() * 2.4)
-    const holdMin = 8 + Math.floor(rnd() * 320)
-    const openHour = 6 + Math.floor(rnd() * 12)
-    const openMin = Math.floor(rnd() * 60)
-    const side = rnd() > 0.46 ? 'Buy' : 'Sell'
+const round2 = (n) => Math.round(n * 100) / 100
+const sum = (list) => round2(list.reduce((t, n) => t + n, 0))
 
-    /* The prices follow from the gross the row shows, not from the net, so the
-       row's own arithmetic holds both ways:
-         (exit − entry) × lots × contract = profit,  profit − commission = net.
-       A Buy gains when the exit is above the entry. */
-    const entry = fix(inst.price * (1 + (rnd() - 0.5) * 0.004), inst.symbol)
-    const commission = commissionFor(lots)
-    const gross = round2(share + commission)
-    const move = gross / (lots * inst.usdPerPoint)
-    const exit = fix(side === 'Buy' ? entry + move : entry - move, inst.symbol)
-
-    trades.push({
-      id: `TX-${ticket += 1}`,
-      account: account.number,
-      date,
-      openedAt: at(openHour, openMin),
-      closedAt: at((openHour + Math.floor(holdMin / 60)) % 24, (openMin + holdMin) % 60),
-      symbol: inst.symbol,
-      side,
-      lots,
-      entry,
-      exit,
-      /* Gross before the round-turn cost; profit − commission is the net below. */
-      profit: round2(share + commission),
-      commission,
-      ticketSize: Math.round(lots * inst.contract * inst.price),
-      holdMin,
-      pnl: share,
-      r: round2(share / 180),
-      tag: TAGS[Math.floor(rnd() * TAGS.length)],
-    })
-  }
-
-  for (let i = 1; i < series.length; i += 1) {
-    const date = dates[i - 1]
-    let left = round2(series[i] - series[i - 1])
-
-    /* Most days carry at least one trade against the day's direction, which is
-       what keeps the win/loss mix and the streak analysis plausible. */
-    if (Math.abs(left) > 120 && rnd() < 0.62) {
-      const size = Math.min(Math.abs(left) * 0.34, 30 + rnd() * 90)
-      const counter = round2(-Math.sign(left) * size)
-      left = round2(left - counter)
-      emit(counter, date)
-    }
-
-    const parts = 1 + Math.floor(rnd() * 2)
-    for (let p = 0; p < parts; p += 1) {
-      const last = p === parts - 1
-      const share = last ? left : round2(left * (0.55 + rnd() * 0.4))
-      left = round2(left - share)
-      emit(share, date)
-    }
-  }
-  return trades.reverse()
+/* The account's own equity series, oldest first: the API's snapshots when it
+   has them, else an empty list — nothing is invented. */
+export function sessionsFor(number) {
+  const account = accountByNumber(number)
+  if (!account || !Array.isArray(account.spark) || !account.spark.length) return []
+  const started = account.started || new Date().toISOString().slice(0, 10)
+  const dates = businessDays(started, account.spark.length)
+  return account.spark.map((v, i) => ({ value: v, date: dates[i] }))
 }
 
-/*
- * Open positions.
- *
- * The prototype held none, which left the Trades tab's Open view as an empty
- * state. Each account now carries the positions its own numbers imply: the
- * unrealised total on an account's open book is exactly equity − balance, so
- * "equity = balance + open P&L" is true on every card, header and table rather
- * than asserted in one place and contradicted in another. A breached account
- * has none, because it has nothing left to trade.
- *
- * The marks are authored and the money is derived from them, which is the only
- * way the row's own arithmetic can hold: (current − entry) × lots × contract,
- * signed by the side, is the unrealised figure in the table. The pairs are also
- * chosen so each account's open total lands exactly on its equity − balance.
- */
-const OPEN_BOOK = {
-  /* +$149.00 open on the 100K evaluation. */
-  '412907': [
-    { symbol: 'XAUUSD', side: 'Buy', lots: 0.1, entry: 3182.4, current: 3192, openedAt: '09:12' },
-    { symbol: 'EURUSD', side: 'Sell', lots: 0.5, entry: 1.08526, current: 1.0842, openedAt: '11:40' },
-  ],
-  /* −$170.00 open on the 50K swing. */
-  '418233': [
-    { symbol: 'NAS100', side: 'Buy', lots: 0.5, entry: 24210, current: 23970, openedAt: '08:05' },
-    { symbol: 'XAUUSD', side: 'Sell', lots: 0.25, entry: 3180.4, current: 3182.4, openedAt: '13:22' },
-  ],
-  /* −$150.00 open on the funded account, mid payout cycle. */
-  '401566': [
-    { symbol: 'GER30', side: 'Buy', lots: 0.4, entry: 18645, current: 18420, openedAt: '07:48' },
-    { symbol: 'EURUSD', side: 'Buy', lots: 1.2, entry: 1.0847, current: 1.0842, openedAt: '12:15' },
-  ],
+export const tradesFor = (number) => LIVE.byNumber[String(number)]?.trades || []
+
+export const allTrades = () =>
+  Object.values(LIVE.byNumber).flatMap((entry) => entry.trades || [])
+
+/* Loss taken on the account's most recent logged day — the "today" its daily
+   loss meter reads. */
+export const maxLossToday = (number) => {
+  const trades = tradesFor(number)
+  if (!trades.length) return 0
+  const day = trades[0].date
+  return Math.abs(round2(trades.filter((t) => t.date === day && t.pnl < 0).reduce((t, x) => t + x.pnl, 0)))
 }
-
-/* Position marks are read against the session the portal is showing. */
-const OPEN_DATE = '2026-09-21'
-
-export const openPositionsFor = (number) => {
-  const book = OPEN_BOOK[String(number)] || []
-  return book.map((p, i) => {
-    const inst = INSTRUMENTS.find((x) => x.symbol === p.symbol) || INSTRUMENTS[0]
-    const sign = p.side === 'Buy' ? 1 : -1
-    const unrealized = round2(sign * (p.current - p.entry) * p.lots * inst.usdPerPoint)
-    const commission = commissionFor(p.lots)
-    return {
-      id: `OP-${number}-${i + 1}`,
-      openedDate: OPEN_DATE,
-      openedAt: p.openedAt,
-      symbol: p.symbol,
-      side: p.side,
-      lots: p.lots,
-      closedLots: 0,
-      entry: p.entry,
-      current: p.current,
-      unrealized,
-      commission,
-      /* What the position is worth if it is closed at the current mark. */
-      net: round2(unrealized - commission),
-      status: 'Open',
-    }
-  })
-}
-
-/* What the open book is worth right now — the same figure as equity − balance. */
-export const openPnlFor = (number) =>
-  round2(openPositionsFor(number).reduce((t, p) => t + p.unrealized, 0))
-
-const LOG = Object.fromEntries(ACCOUNTS.map((a) => [a.number, buildLog(a)]))
-
-export const tradesFor = (number) => LOG[number] || []
 
 /* Consistency and recovery follow from the log and the curve. */
 export const consistencyFor = (number) => {
@@ -371,30 +155,17 @@ export const recoveryFor = (number) => {
   const a = analyticsFor(number)
   return a.maxDrawdown > 0 ? round2(a.netPnl / a.maxDrawdown) : 0
 }
-export const allTrades = () => Object.values(LOG).flat()
-export const accountByNumber = (number) => ACCOUNTS.find((a) => a.number === String(number))
 
-/* Loss taken on the account's most recent logged day — the "today" its daily
-   loss meter reads, since the demo log is historical. */
-export const maxLossToday = (number) => {
-  const trades = tradesFor(number)
-  if (!trades.length) return 0
-  const day = trades[0].date
-  return Math.abs(round2(trades.filter((t) => t.date === day && t.pnl < 0).reduce((t, x) => t + x.pnl, 0)))
-}
+/*
+ * Open positions — the API carries none (there is no open-book endpoint), so
+ * an account's Open view is an honest empty state until one exists. The demo
+ * prototype used to synthesise a book from each balance curve; with live
+ * accounts that invention would contradict the numbers beside it.
+ */
+export const openPositionsFor = () => []
+export const openPnlFor = () => 0
 
-/* Session-by-session closes, newest first, for the detail chart's labels. */
-export function sessionsFor(number) {
-  const account = accountByNumber(number)
-  if (!account) return []
-  const values = seriesOf(account)
-  const dates = businessDays(account.started, values.length)
-  return values.map((v, i) => ({ value: v, date: dates[i] }))
-}
-
-const sum = (list) => round2(list.reduce((t, n) => t + n, 0))
-
-/* Everything the Trades and Analytics tabs print, computed from the log. */
+/* Everything the Trades and Analytics tabs print, computed from the live log. */
 export function analyticsFor(number) {
   const trades = tradesFor(number)
   const wins = trades.filter((t) => t.pnl > 0)
@@ -514,10 +285,10 @@ export function analyticsFor(number) {
       ? round2(sum(Object.values(dayTotals)) / Object.keys(dayTotals).length)
       : 0,
 
-    /* Derived from the same curve the chart draws, so the score tab and the
+    /* Derived from the same series the chart draws, so the score tab and the
        chart can never disagree. */
     maxDrawdown: (() => {
-      const values = seriesOf(accountByNumber(number) || ACCOUNTS[0])
+      const values = sessionsFor(number).map((s) => s.value)
       let peak = values[0]
       let worst = 0
       values.forEach((v) => {
@@ -531,15 +302,15 @@ export function analyticsFor(number) {
 
 /* The calendar grid for one month: week rows, each with its own summary. */
 export function calendarFor(number, year, month) {
-  const pad = (n) => String(n).padStart(2, '0')
-  const trades = tradesFor(number).filter((t) => t.date.startsWith(`${year}-${pad(month)}`))
+  const pad2 = (n) => String(n).padStart(2, '0')
+  const trades = tradesFor(number).filter((t) => t.date.startsWith(`${year}-${pad2(month)}`))
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate()
   const firstWeekday = new Date(Date.UTC(year, month - 1, 1)).getUTCDay()
 
   const cells = []
   for (let i = 0; i < firstWeekday; i += 1) cells.push(null)
   for (let d = 1; d <= daysInMonth; d += 1) {
-    const iso = `${year}-${pad(month)}-${pad(d)}`
+    const iso = `${year}-${pad2(month)}-${pad2(d)}`
     const list = trades.filter((t) => t.date === iso)
     cells.push({
       day: d,
@@ -567,4 +338,15 @@ export function calendarFor(number, year, month) {
     })
   }
   return { year, month, daysInMonth, firstWeekday, weeks, trades }
+}
+
+function businessDays(startISO, count) {
+  const out = []
+  const d = new Date(`${startISO}T00:00:00Z`)
+  while (out.length < count) {
+    const wd = d.getUTCDay()
+    if (wd !== 0 && wd !== 6) out.push(d.toISOString().slice(0, 10))
+    d.setUTCDate(d.getUTCDate() + 1)
+  }
+  return out
 }

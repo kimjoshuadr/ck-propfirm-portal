@@ -2,11 +2,11 @@
 import { computed, ref } from 'vue'
 import AppIcon from '../AppIcon.vue'
 import { LS } from '../../lib/portal.js'
-import { PAYOUTS, paidPayoutTotal } from '../../data/portal.js'
+import { PAYOUTS, paidPayoutTotal } from '../../lib/portal.js'
 import { money } from '../../lib/format.js'
 
 const hidden = ref(LS.get('ck.hideBalance', '0') === '1')
-const total = paidPayoutTotal()
+const total = computed(() => paidPayoutTotal())
 const paidCount = computed(() => PAYOUTS.filter((p) => p.status === 'paid').length)
 
 function toggle() {

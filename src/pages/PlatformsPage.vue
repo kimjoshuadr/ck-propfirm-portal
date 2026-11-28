@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
-import { ACCOUNTS } from '../data/portal.js'
+import { ACCOUNTS } from '../lib/portal.js'
 import { accountHref } from '../lib/router.js'
 import { brand } from '../lib/assets.js'
 import { pushToast } from '../lib/ui.js'

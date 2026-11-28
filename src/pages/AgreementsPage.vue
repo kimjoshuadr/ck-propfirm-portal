@@ -1,6 +1,8 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
+import ModalDialog from '../components/ModalDialog.vue'
+import { acceptLegal, fetchLegalPending } from '../lib/api.js'
 import { pushToast } from '../lib/ui.js'
 
 /*
@@ -12,9 +14,10 @@ import { pushToast } from '../lib/ui.js'
  * the holder's details and the promo band that used to flank it were ours, not
  * the reference's.
  *
- * Only the affiliate terms are unsigned, and they are the one row with a real
- * action. Dates come from the account itself — this prototype opened on 14 Jun
- * 2026, the day the signed agreements took effect.
+ * Live on top of the reference table: the CRM's pending legal documents —
+ * the latest published versions the signed-in trader still has to accept.
+ * Checkout refuses to start (428 legal_acceptance_required) while any of
+ * these is open, so this list is where that banner's link lands.
  */
 const SIGNED_ON = '14 Jun 2026'
 
@@ -72,6 +75,45 @@ const FILTERS = [
   { key: 'awaiting', label: 'Awaiting signature' },
 ]
 
+/* ------------------------------------------------- pending legal documents */
+
+const pendingDocs = ref([])
+const pendingLoaded = ref(false)
+const reviewing = ref(null) // the doc currently open for review
+const accepting = ref(false)
+const acceptError = ref('')
+
+onMounted(async () => {
+  try {
+    pendingDocs.value = await fetchLegalPending()
+  } catch {
+    pendingDocs.value = []
+  } finally {
+    pendingLoaded.value = true
+  }
+})
+
+async function accept(reviewing_) {
+  accepting.value = true
+  acceptError.value = ''
+  try {
+    await acceptLegal(reviewing_.id)
+    pendingDocs.value = pendingDocs.value.filter((d) => d.id !== reviewing_.id)
+    reviewing.value = null
+    pushToast({ tone: 'good', title: 'Document accepted', msg: `${reviewing_.title} · version ${reviewing_.version} is on file.` })
+  } catch (err) {
+    acceptError.value = err?.message || 'Could not record the acceptance. Please try again.'
+  } finally {
+    accepting.value = false
+  }
+}
+
+const shortDay = (iso) => {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  return isNaN(d) ? '—' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 const filter = ref('all')
 const rows = computed(() => {
   if (filter.value === 'signed') return AGREEMENTS.filter((a) => a.signed)
@@ -101,6 +143,36 @@ function signAffiliate() {
         <p class="dim">View and sign the legal agreements and contracts on your account.</p>
       </div>
     </div>
+
+    <!-- Live: the CRM's pending legal documents — accept them to unblock checkout. -->
+    <section v-if="pendingDocs.length" class="panel util-gap" data-od-id="pending-legal">
+      <div class="panel__head">
+        <span class="panel__title">Awaiting your acceptance</span>
+        <span class="panel__actions">
+          <span class="badge badge--pending"><span class="badge__dot" />{{ pendingDocs.length }} to accept</span>
+        </span>
+      </div>
+      <p class="stat-card__foot" style="padding:0 2px 6px">
+        A published version was updated. Checkout stays locked until each one below is accepted.
+      </p>
+      <div
+        v-for="doc in pendingDocs"
+        :key="doc.id"
+        class="mth-row"
+        :data-od-id="`pending-legal-${doc.key}`"
+      >
+        <span class="mth-row__mark"><AppIcon name="shield" :size="20" /></span>
+        <span class="mth-row__id">
+          <b>{{ doc.title }}</b>
+          <span>Version {{ doc.version }} · published {{ shortDay(doc.published_at) }}</span>
+        </span>
+        <span class="mth-row__actions">
+          <button class="btn btn--secondary btn--sm" @click="reviewing = doc; acceptError = ''">
+            Review &amp; accept
+          </button>
+        </span>
+      </div>
+    </section>
 
     <section class="panel" data-od-id="agreement-list">
       <div class="panel__head">
@@ -160,5 +232,22 @@ function signAffiliate() {
         <strong>No agreements found</strong>Choose another status to see the rest of the file.
       </div>
     </section>
+
+    <!-- The review modal: the document's body, then the accept action. -->
+    <ModalDialog
+      v-if="reviewing"
+      :title="reviewing.title"
+      :subtitle="`Version ${reviewing.version} · published ${shortDay(reviewing.published_at)}`"
+      @close="reviewing = null"
+    >
+      <div class="agr-document" style="max-height:320px;overflow:auto;white-space:pre-wrap;font-size:13.5px;line-height:1.6">{{ reviewing.body }}</div>
+      <p v-if="acceptError" class="stat-card__foot" style="color:var(--red,#e5484d)" role="alert">{{ acceptError }}</p>
+      <template #actions>
+        <button class="btn btn--ghost" @click="reviewing = null">Not now</button>
+        <button class="btn btn--primary" :disabled="accepting" @click="accept(reviewing)">
+          {{ accepting ? 'Recording…' : 'I accept this version' }}
+        </button>
+      </template>
+    </ModalDialog>
   </div>
 </template>

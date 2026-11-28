@@ -7,7 +7,8 @@ import AccountsCarousel from '../components/overview/AccountsCarousel.vue'
 import LeaderboardCard from '../components/overview/LeaderboardCard.vue'
 import CertificatesCard from '../components/overview/CertificatesCard.vue'
 import AlertsFeed from '../components/overview/AlertsFeed.vue'
-import { ACCOUNTS, USER, maxLossToday } from '../data/portal.js'
+import { maxLossToday } from '../data/portal.js'
+import { ACCOUNTS, USER } from '../lib/portal.js'
 import { activeAccount, openChallenge } from '../lib/portal.js'
 import { accountHref } from '../lib/router.js'
 import { longDate, money, signedMoney, signedPct, timeOfDay } from '../lib/format.js'
@@ -70,7 +71,7 @@ function planned(title, msg) {
       <div class="hero__body">
         <div class="hero__meta">
           <span class="hero__chip"><AppIcon name="calendar" :size="13" />{{ longDate() }}</span>
-          <a class="hero__chip hero__chip--link" :href="accountHref(activeAccount.number)">
+          <a v-if="activeAccount" class="hero__chip hero__chip--link" :href="accountHref(activeAccount.number)">
             <AppIcon name="user" :size="13" />Active · {{ activeAccount.id }}
           </a>
         </div>
